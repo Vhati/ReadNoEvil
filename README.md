@@ -26,3 +26,9 @@ Setup
 In order to connect to Twitter on your behalf, you'll first need to bring up this extension's options. Then do a one-time PIN authorization. After that, click the "Fetch Current Block List" button whenever you need to.
 
 Any time you're on Tweetdeck, a clickable-icon will appear in the address bar to toggle redaction.
+
+
+Status
+------
+
+Functioning alpha. There are no stable releases yet.
