@@ -92,15 +92,16 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 	port.onMessage.addListener(
 		function(message, sender, sendResponse) {
-			if (message.type == "show_page_action") {
+			if (message.type == "set_redacting") {
+				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				// Comes from options or popup.
+
+				setRedacting(Boolean(message.value), true);
+			}
+			else if (message.type == "show_page_action") {
 				chrome.pageAction.show(port.sender.tab.id);
 				if (chrome.runtime.lasterror);
 				// Pretend to handle "No tab with id: ##" error. To stop Chrome printing it.
-			}
-			else if (message.type == "set_redacting") {
-				backgroundLog("Message received: "+ message.type +", "+ message.value);
-
-				setRedacting(Boolean(message.value), true);
 			}
 			else if (message.type == "init_content") {
 				backgroundLog("Content init");
@@ -113,7 +114,11 @@ chrome.runtime.onConnect.addListener(function(port) {
 				for (var i=0; i < message.userIds.length; i++) {
 					var userId = message.userIds[i];
 
-					results[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
+					if (backgroundState["redact_all"]) {
+						results[userId] = true;
+					} else {
+						results[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
+					}
 				}
 				port.postMessage({"type":"evilness_result", "value":results});
 			}
@@ -149,6 +154,14 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundLog("Popup init");
 
 				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
+				port.postMessage({"type":"set_redact_all", "value":backgroundState["redact_all"]});
+			}
+			else if (message.type == "set_redact_all") {
+				backgroundLog("Message received: "+ message.type +", "+ message.value);
+
+				backgroundState["redact_all"] = Boolean(message.value);
+				broadcastMessage("popup", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
+				broadcastMessage("content", {"type":"reset_evilness"});
 			}
 			else if (message.type == "get_storage") {
 				chrome.storage.local.get(
@@ -632,6 +645,7 @@ codebird.setConsumerKey(consumerKey, consumerSecret);
 
 var backgroundState = {};
 backgroundState["redacting"] = false;
+backgroundState["redact_all"] = false;
 backgroundState["block_list_timestamp"] = Date.now();
 backgroundState["block_list"] = [];
 backgroundState["ports"] = {"all":[], "content":[], "popup":[], "options":[], "unknown":[]};

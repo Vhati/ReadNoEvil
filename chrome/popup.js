@@ -23,6 +23,7 @@ function popupLog(message) {
 
 var popupState = {};
 popupState["redacting_box"] = null;
+popupState["redact_all_box"] = null;
 
 var backgroundPort = chrome.runtime.connect({"name":"popup"});
 
@@ -34,6 +35,10 @@ backgroundPort.onMessage.addListener(
 			var b = Boolean(message.value);
 			popupState["redacting_box"].checked = b;
 		}
+		else if (message.type == "set_redact_all") {
+			var b = Boolean(message.value);
+			popupState["redact_all_box"].checked = b;
+		}
 	}
 );
 
@@ -41,9 +46,14 @@ backgroundPort.onMessage.addListener(
 
 document.addEventListener("DOMContentLoaded", function() {
 	popupState["redacting_box"] = document.getElementById("redacting-box");
+	popupState["redact_all_box"] = document.getElementById("redact-all-box");
 
 	popupState["redacting_box"].addEventListener("change", function() {
 		backgroundPort.postMessage({"type":"set_redacting", "value":Boolean(popupState["redacting_box"].checked)});
+	});
+
+	popupState["redact_all_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redact_all", "value":Boolean(popupState["redact_all_box"].checked)});
 	});
 
 	backgroundPort.postMessage({type:"init_popup"});
