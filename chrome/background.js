@@ -245,8 +245,14 @@ function broadcastMessage(audience, message) {
 	}
 }
 
-function announceStatus(s) {
-	broadcastMessage("all", {"type":"set_status_text", "value":s});
+/**
+ * Broadcasts a message to all ports, setting new status text.
+ *
+ * @param {string} text
+ * @param {string} severity - One of: "notice", "warning", "error".
+ */
+function announceStatus(text, severity) {
+	broadcastMessage("all", {"type":"set_status_text", "value":text});
 }
 
 function getBlockListStatusString() {
@@ -351,7 +357,7 @@ function submitPIN(pin) {
 				return;
 			}
 			if (reply) {
-				announceStatus("PIN accepted. New credentials have been set.");
+				announceStatus("PIN accepted. New credentials have been set.", "notice");
 				backgroundLog("Applying new credentials");
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
 
@@ -487,7 +493,8 @@ function fetchBlockListBackend(fetchState) {
 		var nowStamp =  Date.now();
 		var waitDelta = resetStamp - nowStamp;
 
-		backgroundLog("Block list fetch delayed by "+ waitDelta +" (until "+ resetDate.toLocaleString() +")");
+		backgroundLog("Block list fetch delayed by "+ waitDelta +" seconds (until "+ resetDate.toLocaleString() +")");
+		announceStatus("Block list fetch delayed by "+ waitDelta +" seconds (until "+ resetDate.toLocaleString() +")", "warning");
 
 		if (waitDelta < 0) {
 			console.assert(waitDelta > 0, "Twitter's rate limit 'reset' timestamp is in the past!? (reset: "+ resetStamp +", now: "+ nowStamp +")");
@@ -504,6 +511,7 @@ function fetchBlockListBackend(fetchState) {
 		return;
 	}
 	backgroundLog("Block list fetch (count: "+ fetchState["new_list"].length +", cursor: "+ fetchState["next_cursor_str"] +")");
+	announceStatus("Block list fetch progress: "+ fetchState["new_list"].length, "notice");
 
 	twitterCall(
 		"blocks_ids",
@@ -511,6 +519,7 @@ function fetchBlockListBackend(fetchState) {
 		function(reply, rate, err) {
 			if (err) {                                               // Normally undefined.
 				backgroundLog("Block list fetch error: "+ err.error);  // Twitter complained or socket timeout.
+				announceStatus("Block list fetch error: "+ err.error, "error");
 				abortFetchingBlockList();
 			}
 
@@ -609,7 +618,7 @@ function setBlockList(new_list, timestamp, store) {
 
 	broadcastMessage("content", {"type":"reset_evilness"});
 
-	announceStatus(getBlockListStatusString());
+	announceStatus(getBlockListStatusString(), "notice");
 
 	if (store) {
 		chrome.storage.local.set(
