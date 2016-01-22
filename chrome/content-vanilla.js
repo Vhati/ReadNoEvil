@@ -26,20 +26,16 @@ function streamMutationCallback(mutations) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				if (addedNode.nodeName.match(/\bli\b/i) && hasClass(addedNode, "stream-item")) {
-					var itemType = getItemType(addedNode);
+				var dredgedItems = dredgeInterestingItems(addedNode);
 
-					if (itemType != null) {
-						var itemInfo = registerItem(addedNode, itemType);
+				for (var j=0; j < dredgedItems.length; j++) {
+					var dredgedItem = dredgedItems[j];
 
-						// Redact if a user is already known to be evil.
-						if (itemInfo != null && isItemTainted(itemInfo)) {
-							setItemRedacted(itemInfo, true);
-						}
-					}
-					else {
-						contentLog("Unusual stream-item discovered");  // TODO: Remove me?
-						contentLog(addedNode);
+					var itemInfo = registerItem(dredgedItem.node, dredgedItem.type);
+
+					// Redact if a user is already known to be evil.
+					if (itemInfo != null && isItemTainted(itemInfo)) {
+						setItemRedacted(itemInfo, true);
 					}
 				}
 			}
@@ -48,8 +44,12 @@ function streamMutationCallback(mutations) {
 			for (var i=0; i < mutation.removedNodes.length; i++) {
 				var removedNode = mutation.removedNodes[i];
 
-				if (removedNode.nodeName.match(/\bli\b/i) && hasClass(removedNode, "stream-item")) {
-					var itemInfo = getItemInfo(removedNode);
+				var interestingItems = dredgeInterestingItems(removedNode);
+
+				for (var j=0; j < interestingItems.length; j++) {
+					var dredgedItem = interestingItems[j];
+
+					var itemInfo = getItemInfo(dredgedItem.node);
 
 					if (itemInfo != null) {
 						setItemRedacted(itemInfo, false);
@@ -68,19 +68,55 @@ var TWEET = "tweet";
 /**
  * Returns the type of a stream-item node, based on DOM structure.
  *
- * @param {HTMLElement} node - A stream-item element.
+ * @param {HTMLElement} node - A stream-item element (tweet.div[data-user-id]).
  * @returns {string} - TWEET, or null.
  */
 function getItemType(node) {
-	if (node.nodeName.match(/\bli\b/i) && hasClass(node, "stream-item")) {
-		if (node.hasAttribute("data-item-type") && node.getAttribute("data-item-type") == "tweet") {
+	if (node.nodeName.match(/\bdiv\b/i) && hasClass(node, "tweet") && node.hasAttribute("data-user-id")) {
 
-			var contentDiv = node.querySelector(":scope > div.tweet[data-user-id] > div.content");
-			if (contentDiv != null) return TWEET;
-		}
+		var contentDiv = node.querySelector(":scope > div.content");
+		if (contentDiv != null) return TWEET;
 	}
 
 	return null;
+}
+
+/**
+ * Returns info about nested elements worth registering.
+ *
+ * MutationObservers watching subtrees aren't notified about *every* tag, just
+ * the highest-level ones.
+ *
+ * @param {HTMLElement} node - An ancestor to search within.
+ * @returns {object[]} - A list of {node:HTMLElement, type:string}
+ */
+function dredgeInterestingItems(node) {
+	var results = [];
+	if (!node.querySelectorAll) return results;
+
+	var nodeType = getItemType(node);
+	if (nodeType != null) {
+		results.push({"node":node, "type":nodeType});
+		return results;
+		// TODO: Decide if type precludes searching for nested items.
+	}
+
+	// Carve out candidates with selectors, then validate their structure.
+	// TODO: Sort out nesting?
+	var candidates = [];
+	var tweetDivs = node.querySelectorAll("div.tweet");
+
+	// Call push(), having exploded the array-like object into individual args.
+	Array.prototype.push.apply(candidates, tweetDivs);
+
+	for (var i=0; i < candidates.length; i++) {
+		var candidateType = getItemType(candidates[i]);
+		if (candidateType != null) {
+			results.push({"node":candidates[i], "type":candidateType});
+		}
+	}
+
+	return results;
 }
 
 
@@ -168,7 +204,7 @@ function registerItem(node, itemType) {
 	var oldInfo = getItemInfo(node)
 	if (oldInfo != null) return oldInfo;
 
-	contentLog("Stream item registered");  // TODO: Remove me.
+	//contentLog("Stream item registered");
 
 	var userIds = getItemUsers(node, itemType);
 
@@ -201,6 +237,8 @@ function registerItem(node, itemType) {
 function unregisterItem(itemInfo) {
 	var index = contentState["items"].indexOf(itemInfo);
 	if (index == -1) return;
+
+	//contentLog("Stream item unregistered");
 
 	contentState["items"].splice(index, 1);
 
@@ -298,8 +336,9 @@ function getItemUsers(node, itemType) {
 	userIds = [];
 
 	if (itemType === TWEET) {
-		var origTweetDiv = node.querySelector(":scope > div.tweet[data-user-id]");
-		if (origTweetDiv != null) userIds.push(""+ origTweetDiv.getAttribute("data-user-id"));
+		var origTweetDiv = node;
+		var userId = origTweetDiv.getAttribute("data-user-id")
+		if (userId != null) userIds.push(""+ userId);
 
 		var quoteTweetDiv = node.querySelector("div.QuoteTweet-innerContainer[data-user-id]");
 		if (quoteTweetDiv != null) userIds.push(""+ quoteTweetDiv.getAttribute("data-user-id"));
@@ -357,7 +396,7 @@ function setItemRedacted(itemInfo, b) {
 	var succeeded = false;
 
 	if (itemInfo.type === TWEET) {
-		var contentDiv = node.querySelector(":scope > div.tweet > div.content");
+		var contentDiv = itemInfo.node.querySelector(":scope > div.content");
 		if (contentDiv != null) {
 			contentDiv.style.opacity = (b ? 0.15 : 1.0);
 			succeeded = true;
@@ -390,16 +429,13 @@ function setAllItemsRedacted(b) {
 function registerAllItems() {
 	contentLog("Registering all stream-items");  // TODO: Remove me.
 
-	var itemNodes = contentState["stream_div"].querySelectorAll("ol#stream-items-id > li.stream-item");
-	for (var i=0; i < itemNodes.length; i++) {
-		var itemType = getItemType(itemNodes[i]);
+	var itemsNode = contentState["stream_div"].querySelector("ol#stream-items-id");
+	var dredgedItems = dredgeInterestingItems(itemsNode);
 
-		if (itemType != null) {
-			registerItem(itemNodes[i], itemType);
-		} else {
-			contentLog("Unusual stream-item discovered");  // TODO: Remove me?
-			contentLog(itemNodes[i]);
-		}
+	for (var j=0; j < dredgedItems.length; j++) {
+		var dredgedItem = dredgedItems[j];
+
+		registerItem(dredgedItem.node, dredgedItem.type);
 	}
 }
 
@@ -426,7 +462,7 @@ function setRedacting(b) {
 	if (b) {
 		var resultsList = contentState["stream_div"].querySelector("ol#stream-items-id");
 
-		var observerCfg = { childList: true, attributes: false, characterData: false, subtree: false }
+		var observerCfg = { childList: true, attributes: false, characterData: false, subtree: true }
 		contentState["stream_observer"].observe(resultsList, observerCfg);
 	}
 	else {
