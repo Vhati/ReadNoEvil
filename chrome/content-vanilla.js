@@ -72,7 +72,7 @@ var TWEET = "tweet";
  * @returns {string} - TWEET, or null.
  */
 function getItemType(node) {
-	if (node.nodeName.match(/\bdiv\b/i) && hasClass(node, "tweet") && node.hasAttribute("data-user-id")) {
+	if (node.nodeName.match(/\bdiv\b/i) && node.classList.contains("tweet") && node.hasAttribute("data-user-id")) {
 
 		var contentDiv = node.querySelector(":scope > div.content");
 		if (contentDiv != null) return TWEET;
@@ -432,8 +432,8 @@ function registerAllItems() {
 	var itemsNode = contentState["stream_div"].querySelector("ol#stream-items-id");
 	var dredgedItems = dredgeInterestingItems(itemsNode);
 
-	for (var j=0; j < dredgedItems.length; j++) {
-		var dredgedItem = dredgedItems[j];
+	for (var i=0; i < dredgedItems.length; i++) {
+		var dredgedItem = dredgedItems[i];
 
 		registerItem(dredgedItem.node, dredgedItem.type);
 	}
@@ -467,26 +467,6 @@ function setRedacting(b) {
 	}
 	else {
 		contentState["stream_observer"].disconnect();
-	}
-}
-
-
-
-/**
- * Returns true if a node has a particular CSS class.
- *
- * @param {HTMLElement} node
- * @param {String} needle
- * @returns {Boolean}
- */
-function hasClass(node, needle) {
-	var c;
-	if (node && node.className && typeof needle === "string") {
-		c = node.getAttribute("class");
-		c = " "+ c + " ";
-		return (c.indexOf(" "+ needle +" ") > -1);
-	} else {
-		return false;
 	}
 }
 

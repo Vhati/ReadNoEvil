@@ -26,7 +26,7 @@ function columnsMutationCallback(mutations) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				if (addedNode.nodeName.match(/\bsection\b/i) && hasClass(addedNode, "column")) {
+				if (addedNode.nodeName.match(/\bsection\b/i) && addedNode.classList.contains("column")) {
 
 					// Drill down a few levels, to the next interesting element.
 
@@ -43,7 +43,7 @@ function columnsMutationCallback(mutations) {
 			for (var i=0; i < mutation.removedNodes.length; i++) {
 				var removedNode = mutation.removedNodes[i];
 
-				if (removedNode.nodeName.match(/\bsection\b/i) && hasClass(removedNode, "column")) {
+				if (removedNode.nodeName.match(/\bsection\b/i) && removedNode.classList.contains("column")) {
 
 					var chirpsDiv = removedNode.querySelector("div.chirp-container");
 					if (chirpsDiv) {
@@ -70,7 +70,7 @@ function chirpsMutationCallback(mutations) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				if (addedNode.nodeName.match(/\barticle\b/i) && hasClass(addedNode, "stream-item")) {
+				if (addedNode.nodeName.match(/\barticle\b/i) && addedNode.classList.contains("stream-item")) {
 					var itemType = getItemType(addedNode);
 
 					if (itemType != null) {
@@ -92,7 +92,7 @@ function chirpsMutationCallback(mutations) {
 			for (var i=0; i < mutation.removedNodes.length; i++) {
 				var removedNode = mutation.removedNodes[i];
 
-				if (removedNode.nodeName.match(/\barticle\b/i) && hasClass(removedNode, "stream-item")) {
+				if (removedNode.nodeName.match(/\barticle\b/i) && removedNode.classList.contains("stream-item")) {
 					var itemInfo = getItemInfo(removedNode);
 
 					if (itemInfo != null) {
@@ -633,26 +633,6 @@ function setRedacting(b) {
 
 			columnInfo.observer.disconnect();
 		}
-	}
-}
-
-
-
-/**
- * Returns true if a node has a particular CSS class.
- *
- * @param {HTMLElement} node
- * @param {String} needle
- * @returns {Boolean}
- */
-function hasClass(node, needle) {
-	var c;
-	if (node && node.className && typeof needle === "string") {
-		c = node.getAttribute("class");
-		c = " "+ c + " ";
-		return (c.indexOf(" "+ needle +" ") > -1);
-	} else {
-		return false;
 	}
 }
 
