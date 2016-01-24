@@ -1,23 +1,23 @@
 /* This would hide all but the author+date header of tweets. */
-/**
+/*
 div.rne-vanilla-tweet-redacted  > div.content > *:not(.stream-item-header) {
   opacity: 0.15;
 }
 */
 
-/* Tweets' text. */
+/* Tweet text. */
 div.rne-vanilla-tweet-redacted  > div.content > p.tweet-text {
   opacity: 0.15;
 }
-/* Tweets' image(s)/video. */
+/* Tweet image(s)/video. */
 div.rne-vanilla-tweet-redacted  > div.content > div.AdaptiveMedia {
   display: none;
 }
-/* Quoted tweets' text. */
+/* Quoted tweet text. */
 div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content div.QuoteTweet-text {
   opacity: 0.15;
 }
-/* Quoted tweets' thumbnail image. */
+/* Quoted tweet thumbnail image. */
 div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content > div.QuoteMedia {
   display: none;
 }
