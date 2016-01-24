@@ -126,6 +126,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundLog("Options init");
 
 				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
+				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_status_text", "value":getBlockListStatusString()});
 			}
 			else if (message.type == "verify_twitter_credentials") {
@@ -277,6 +278,7 @@ function twitterInit() {
 			else if (data.oauth_key && data.oauth_secret) {
 				backgroundLog("Using cached Twitter credentials");
 				codebird.setToken(data.oauth_key, data.oauth_secret);
+				setTwitterAuthorized(true);
 			}
 			else {
 				backgroundLog("No cached Twitter credentials to use");
@@ -329,6 +331,7 @@ function requestPIN() {
 			}
 			if (reply) {
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
+				setTwitterAuthorized(false);
 
 				backgroundLog("Requesting an oauth PIN url");
 				twitterCall(
@@ -360,6 +363,7 @@ function submitPIN(pin) {
 				announceStatus("PIN accepted. New credentials have been set.", "notice");
 				backgroundLog("Applying new credentials");
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
+				setTwitterAuthorized(true);
 
 				chrome.storage.local.set(
 					{"oauth_key":reply.oauth_token, "oauth_secret":reply.oauth_token_secret},
@@ -604,6 +608,16 @@ function setRedacting(b, store) {
 }
 
 /**
+ * Toggles the flag tracking codebird's setToken() calls and notifies other scripts.
+ *
+ * @param {Boolean} b - The new authorization state.
+ */
+function setTwitterAuthorized(b) {
+	twitterState["authorized"] = b;
+	broadcastMessage("options", {"type":"set_twitter_ready", "value":twitterState["authorized"]});
+}
+
+/**
  * Replaces the current block list and notifies other scripts.
  *
  * @param {string[]} new_list - The new list of stringified userIds.
@@ -660,7 +674,8 @@ backgroundState["block_list"] = [];
 backgroundState["ports"] = {"all":[], "content":[], "popup":[], "options":[], "unknown":[]};
 
 var twitterState = {}
-twitterState["rate"] = {};  // Dict of methodName:{limit, remaining, reset}
+twitterState["authorized"] = false;  // Whether codebird has set oauth tokens.
+twitterState["rate"] = {};           // Dict of methodName:{limit, remaining, reset}
 
 
 

@@ -35,6 +35,7 @@ optionsState["redacting_box"] = null;
 optionsState["request_pin_btn"] = null;
 optionsState["input_pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
+optionsState["twitter_actions_fieldset"] = null;
 optionsState["test_credentials_btn"] = null;
 optionsState["fetch_block_list_btn"] = null;
 
@@ -47,6 +48,9 @@ backgroundPort.onMessage.addListener(
 		if (message.type == "set_redacting") {
 			var b = Boolean(message.value);
 			optionsState["redacting_box"].checked = b;
+		}
+		else if (message.type == "set_twitter_ready") {
+			optionsState["twitter_actions_fieldset"].disabled = !Boolean(message.value);
 		}
 		else if (message.type == "set_status_text") {
 			setStatusText(message.value);
@@ -61,6 +65,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
 	optionsState["input_pin_field"] = document.getElementById("input-pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
+	optionsState["twitter_actions_fieldset"] = document.getElementById("twitter-actions-fieldset");
 	optionsState["test_credentials_btn"] = document.getElementById("test-credentials-btn");
 	optionsState["fetch_block_list_btn"] = document.getElementById("fetch-block-list-btn");
 
