@@ -1,0 +1,7 @@
+article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body {
+  opacity: 0.15;
+}
+
+article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summary > div.account-summary-text {
+  opacity: 0.15;
+}

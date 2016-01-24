@@ -2,7 +2,7 @@
   "name": "ReadNoEvil",
   "description": "Prune Twitter search results and timelines to omit users you've blocked.",
   "version": "0.0.1",
-  "homepage_url": "http://github.com/vhati",
+  "homepage_url": "https://github.com/Vhati/ReadNoEvil",
 
   "minimum_chrome_version": "40",
 
@@ -40,6 +40,10 @@
       "38": "icon38.png"
     }
   },
+  "web_accessible_resources": [
+    "tweetdeck-faded.css",
+    "vanilla-faded.css"
+  ],
   "permissions": [
     "activeTab",
     "storage",

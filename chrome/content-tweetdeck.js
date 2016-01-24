@@ -206,6 +206,8 @@ function contentInit() {
 		return;
 	}
 
+	setStylesheet("tweetdeck-faded.css");
+
 	initStateVars();
 	if (contentState["cols_div"] != null) {
 		contentLog("Tweetdeck page with columns loaded");
@@ -537,32 +539,13 @@ function isItemTainted(itemInfo) {
  * @param {Boolean} b - True to redact, false to un-redact
  */
 function setItemRedacted(itemInfo, b) {
-	// TODO: Abort if b is true but node was already redacted.
-	var succeeded = false;
-
 	if (itemInfo.type === TWEET) {
-		var origTweetDiv = itemInfo.node.querySelector(":scope > div.item-box div.tweet");
-		if (origTweetDiv != null) {
-			var bodyDiv = origTweetDiv.querySelector(":scope > div.tweet-body");
-			if (bodyDiv != null) {
-				bodyDiv.style.opacity = (b ? 0.15 : 1.0);
-				succeeded = true;
-			}
-		}
+		var methodName = (b ? "add" : "remove");
+		itemInfo.node.classList[methodName]("rne-tweetdeck-tweet-redacted");
 	}
 	else if (itemInfo.type === ACCOUNT_ACTIVITY) {
-		var acctDiv = itemInfo.node.querySelector(":scope > div.item-box div.account-summary");
-		if (acctDiv != null) {
-			var acctTextDiv = acctDiv.querySelector(":scope > div.account-summary-text");
-			if (acctTextDiv != null) {
-				acctTextDiv.style.opacity = (b ? 0.15 : 1.0);
-				succeeded = true;
-			}
-		}
-	}
-	if (!succeeded) {
-		contentLog("Unable to set redaction on unusual stream-item");
-		contentLog(itemInfo.node);
+		var methodName = (b ? "add" : "remove");
+		itemInfo.node.classList[methodName]("rne-tweetdeck-account-activity-redacted");
 	}
 }
 
@@ -663,6 +646,20 @@ function setRedacting(b) {
 			columnInfo.observer.disconnect();
 		}
 	}
+}
+
+
+
+function setStylesheet(cssFile) {
+	var oldLink = document.querySelector("link#rne-stylesheet");
+	if (oldLink != null) document.getElementsByTagName("head")[0].removeChild(oldLink);
+
+	var newLink = document.createElement("link");
+	newLink.id = "rne-stylesheet";
+	newLink.href = chrome.extension.getURL(cssFile);
+	newLink.type = "text/css";
+	newLink.rel = "stylesheet";
+	document.getElementsByTagName("head")[0].appendChild(newLink);
 }
 
 

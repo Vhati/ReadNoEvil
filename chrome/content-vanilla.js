@@ -148,8 +148,9 @@ function contentInit() {
 		return;
 	}
 
-	initStateVars();
+	setStylesheet("vanilla-faded.css");
 
+	initStateVars();
 	if (contentState["stream_div"] != null) {
 		contentLog("Twitter page with a stream loaded");
 
@@ -392,19 +393,9 @@ function isItemTainted(itemInfo) {
  * @param {Boolean} b - True to redact, false to un-redact
  */
 function setItemRedacted(itemInfo, b) {
-	// TODO: Abort if b is true but node was already redacted.
-	var succeeded = false;
-
 	if (itemInfo.type === TWEET) {
-		var contentDiv = itemInfo.node.querySelector(":scope > div.content");
-		if (contentDiv != null) {
-			contentDiv.style.opacity = (b ? 0.15 : 1.0);
-			succeeded = true;
-		}
-	}
-	if (!succeeded) {
-		contentLog("Unable to set redaction on unusual stream-item");
-		contentLog(itemInfo.node);
+		var methodName = (b ? "add" : "remove");
+		itemInfo.node.classList[methodName]("rne-vanilla-tweet-redacted");
 	}
 }
 
@@ -468,6 +459,20 @@ function setRedacting(b) {
 	else {
 		contentState["stream_observer"].disconnect();
 	}
+}
+
+
+
+function setStylesheet(cssFile) {
+	var oldLink = document.querySelector("link#rne-stylesheet");
+	if (oldLink != null) document.getElementsByTagName("head")[0].removeChild(oldLink);
+
+	var newLink = document.createElement("link");
+	newLink.id = "rne-stylesheet";
+	newLink.href = chrome.extension.getURL(cssFile);
+	newLink.type = "text/css";
+	newLink.rel = "stylesheet";
+	document.getElementsByTagName("head")[0].appendChild(newLink);
 }
 
 
