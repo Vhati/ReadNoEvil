@@ -163,8 +163,9 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundLog("Options init");
 
 				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
-				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
+				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
+				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription()});
 				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
 			}
 			else if (message.type == "verify_twitter_credentials") {
@@ -172,7 +173,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 					var status = {};
 					status.when = Date.now();
 					if (!Boolean(err)) {
-						status.text = "Credentials verified. Screen name: "+ reply.screen_name;
+						status.text = "Credentials verified for "+ reply.screen_name;
 						status.severity = "notice";
 					} else {
 						status.text = "Credentials could not be verified: "+ err.error;
@@ -244,7 +245,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundState["ports"][portName].splice(i, 1);
 			}
 		}
-		backgroundLog("A port disconnected: "+ portName);
+		//backgroundLog("A port disconnected: "+ portName);
 	});
 });
 
@@ -355,7 +356,7 @@ function announceStatus(text, severity, persistent) {
 /**
  * Returns the last persistent message passed to announceStatus().
  *
- * @returns {Object} - {text:string, severity:string, when:timestamp}
+ * @returns {Object} - {text:string, severity:string, when:timestamp}, or null
  */
 function getLastAnnouncedStatus() {
 	return backgroundState["last_status"];
@@ -366,13 +367,13 @@ function getLastAnnouncedStatus() {
  *
  * @returns {string}
  */
-function getBlockListStatusString() {
+function getBlockListDescription() {
 	var count = backgroundState["block_list"].length;
 	var stamp = backgroundState["block_list_timestamp"];
 	var dateStr = (stamp ? new Date(stamp).toLocaleString() : "");
 
-	var s = "Block list count: "+ count;
-	if (dateStr) s += ". ("+ dateStr +")"
+	var s = count +" users";
+	if (dateStr) s += " ("+ dateStr +")"
 	return s;
 }
 
@@ -778,8 +779,7 @@ function setBlockList(new_list, timestamp, store) {
 	backgroundState["block_list"] = new_list;
 
 	broadcastMessage("content", {"type":"reset_evilness"});
-
-	announceStatus(getBlockListStatusString(), "notice", true);
+	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription()});
 
 	if (store) {
 		chrome.storage.local.set(
@@ -820,7 +820,7 @@ backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();
 backgroundState["block_list"] = [];
 backgroundState["block_list_fetch_state"] = null;
-backgroundState["last_status"] = {"text":"", "severity":"notice"};
+backgroundState["last_status"] = null;  // {text, severity, when}
 backgroundState["ports"] = {"all":[], "content":[], "popup":[], "options":[], "unknown":[]};
 
 var twitterState = {}

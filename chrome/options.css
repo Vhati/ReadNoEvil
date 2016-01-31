@@ -2,3 +2,9 @@ form#options-form input {
   margin-top:5px;
   margin-bottom:5px;
 }
+
+fieldset#status-fieldset span.label-text {
+  display: inline-block;
+  width: 18ch;
+  margin-right: 5px;
+}

@@ -17,8 +17,8 @@
 
         <p style="white-space:normal; text-align:center">Before this extension can communicate with Twitter, you'll need to grant it access to your account. This only needs to be done once.</p>
 
-        <div style="white-space:nowrap">
-          <fieldset style="display:inline-block; vertical-align:top">
+        <div style="display:flex; flex-direction:row; align-items:stretch">
+          <fieldset style="flex:1">
             <legend>Twitter Setup</legend>
             <input type="button" id="request-pin-btn" value="Request PIN Authorization" />
             <br />
@@ -27,7 +27,7 @@
               <input type="button" id="submit-pin-btn" value="OK" />
             </span>
           </fieldset>
-          <fieldset style="display:inline-block; vertical-align:top" id="twitter-actions-fieldset" disabled="true">
+          <fieldset style="flex:1" id="twitter-actions-fieldset" disabled="true">
             <legend>Twitter Actions</legend>
             <input type="button" id="test-credentials-btn" value="Test Credentials" />
             <br />
@@ -39,6 +39,14 @@
           </fieldset>
         </div>
         <br />
+
+        <fieldset id="status-fieldset">
+          <legend>Status</legend>
+          <p style="margin:3px"><span class="label-text">Twitter Authorized:</span><span id="twitter-ready-text"></span></p>
+          <p style="margin:3px"><span class="label-text">Block List:</span><span id="block-list-text"></span></p>
+        </fieldset>
+        <br />
+
       </form>
     </div>
 

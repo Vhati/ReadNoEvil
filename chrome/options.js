@@ -25,7 +25,7 @@ function optionsLog(message) {
 
 function setStatusText(s) {
 	var statusDiv = document.getElementById("status-div");
-	statusDiv.textContent = (s != null ? s : "");
+	statusDiv.textContent = (s != null && s != "" ? s : "\u200b");  // Unicode zer-width space.
 }
 
 
@@ -113,16 +113,27 @@ backgroundPort.onMessage.addListener(
 			var b = Boolean(message.value);
 			optionsState["redacting_box"].checked = b;
 		}
-		else if (message.type == "set_twitter_ready") {
-			optionsState["twitter_actions_fieldset"].disabled = !Boolean(message.value);
-		}
 		else if (message.type == "set_block_list_fetch_interval") {
 			setTimedField("fetch_interval_field", message.value);
 		}
+		else if (message.type == "set_twitter_ready") {
+			optionsState["twitter_actions_fieldset"].disabled = !Boolean(message.value);
+
+			var span = document.getElementById("twitter-ready-text");
+			span.textContent = ""+Boolean(message.value);
+		}
+		else if (message.type == "set_block_list_description") {
+			var span = document.getElementById("block-list-text");
+			span.textContent = (message.value != null ? message.value : "");
+		}
 		else if (message.type == "set_status_text") {
 			var status = message.value;
-			var timeStr = new Date(status.when).toLocaleTimeString();
-			setStatusText("@ "+ timeStr +" -> "+ status.text);
+			if (status != null) {
+				var timeStr = new Date(status.when).toLocaleTimeString();
+				setStatusText("@ "+ timeStr +" -> "+ status.text);
+			} else {
+				setStatusText(null);
+			}
 		}
 	}
 );
