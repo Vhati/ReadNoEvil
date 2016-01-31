@@ -16,7 +16,7 @@ var optionsDebug = true;  // Edit this to toggle logging/alerts.
  * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
  */
 function optionsLog(message) {
-	if (popupDebug) {
+	if (optionsDebug) {
 		chrome.extension.getBackgroundPage().console.log(message);
 	}
 }
