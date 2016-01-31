@@ -78,6 +78,10 @@ function backgroundInit() {
 			var newBlockList;
 			var newBlockListStamp;
 
+			// Default redactiing to true if not set.
+			var newRedactingVanilla = (data.redacting_vanilla != null ? data.redacting_vanilla : true);
+			var newRedactingTweetdeck = (data.redacting_tweetdeck != null ? data.redacting_tweetdeck : true);
+
 			if (data.block_list) {
 				newBlockList = data.block_list;
 
@@ -96,8 +100,8 @@ function backgroundInit() {
 				newFetchInterval = data.block_list_fetch_interval;
 			}
 
-			setRedactingVanilla(Boolean(data.redacting_vanilla), false);
-			setRedactingTweetdeck(Boolean(data.redacting_tweetdeck), false);
+			setRedactingVanilla(newRedactingVanilla, false);
+			setRedactingTweetdeck(newRedactingTweetdeck, false);
 			setBlockListFetchInterval(newFetchInterval, false);
 			setBlockList(newBlockList, newBlockListStamp, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
