@@ -1,8 +1,11 @@
 <!doctype html>
 <html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="options.css">
+  </head>
   <body>
     <div>
-      <form id="settings-form" action="" method="">
+      <form id="options-form" action="" method="">
         <fieldset>
           <legend>General</legend>
           <span style="white-space:nowrap">
@@ -17,18 +20,22 @@
         <div style="white-space:nowrap">
           <fieldset style="display:inline-block; vertical-align:top">
             <legend>Twitter Setup</legend>
-            <input style="margin-top:10px" type="button" id="request-pin-btn" value="Request PIN Authorization" />
+            <input type="button" id="request-pin-btn" value="Request PIN Authorization" />
             <br />
             <span style="white-space:nowrap">
-              <label>PIN: <input type="text" id="input-pin-field" size="8" /></label>
-              <input style="margin-top:10px" type="button" id="submit-pin-btn" value="OK" />
+              <label>PIN: <input type="text" id="pin-field" size="8" /></label>
+              <input type="button" id="submit-pin-btn" value="OK" />
             </span>
           </fieldset>
           <fieldset style="display:inline-block; vertical-align:top" id="twitter-actions-fieldset" disabled="true">
             <legend>Twitter Actions</legend>
-            <input style="margin-top:10px" type="button" id="test-credentials-btn" value="Test Credentials" />
+            <input type="button" id="test-credentials-btn" value="Test Credentials" />
             <br />
-            <input style="margin-top:10px" type="button" id="fetch-block-list-btn" value="Fetch Current Block List" />
+            <input type="button" id="fetch-block-list-btn" value="Fetch Current Block List" />
+            <br />
+            <span style="white-space:nowrap">
+              <label>Re-fetch every N days: <input style="width:8ch" type="number" id="fetch-interval-field" min="0" step="1" /></label>
+            </span>
           </fieldset>
         </div>
         <br />
