@@ -12,10 +12,10 @@ var verbosity = LogLevel.DEBUG;
 
 
 
-
-
-var ALARM_FETCH_BLOCK_LIST = "fetch_block_list";
-var ALARM_REFETCH_CHECK = "fetch_block_list_if_expired";
+var Alarm = {
+	FETCH_BLOCK_LIST: "fetch_block_list",
+	REFETCH_CHECK: "fetch_block_list_if_expired"
+};
 
 
 
@@ -62,7 +62,13 @@ function logError(message) {
 
 function backgroundInit() {
 	chrome.storage.local.get(
-		["oauth_key", "oauth_secret", "redacting_vanilla", "redacting_tweetdeck", "block_list_fetch_interval", "block_list_timestamp", "block_list", "block_list_fetch_state"],
+		[
+			"oauth_key", "oauth_secret",
+			"redacting_vanilla", "redacting_tweetdeck",
+			"block_list_fetch_interval",
+			"block_list_timestamp", "block_list",
+			"block_list_fetch_state"
+		],
 		function(data) {
 			if (chrome.runtime.lasterror) {
 				throw new Error(chrome.runtime.lastError.message);
@@ -182,8 +188,8 @@ chrome.runtime.onConnect.addListener(function(port) {
 			}
 			else if (message.type == "show_page_action") {
 				chrome.pageAction.show(port.sender.tab.id);
-				if (chrome.runtime.lasterror);
-				// Pretend to handle "No tab with id: ##" error. To stop Chrome printing it.
+				// No way to suppress occasional "No tab with id: ##" error in log.
+				// If there were a callback, checking chrome.runtime.lasterror would do that.
 			}
 			else if (message.type == "init_content") {
 				logInfo("Content init");
@@ -265,18 +271,6 @@ chrome.runtime.onConnect.addListener(function(port) {
 				broadcastMessage("popup", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
 				broadcastMessage("content", {"type":"reset_evilness"});
 			}
-			else if (message.type == "get_storage") {
-				chrome.storage.local.get(
-					message.keys,
-					function(data) {
-						if (chrome.runtime.lasterror) {
-							backgroundLog(chrome.runtime.lastError.message);
-						}
-						sendResponse(data);
-					}
-				);
-				return true;
-			}
 		}
 	);
 
@@ -335,15 +329,15 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
  * Any alarms which are past due will fire immediately.
  */
 function alarmsInit() {
-	chrome.alarms.create(ALARM_REFETCH_CHECK, {"delayInMinutes":1, "periodInMinutes":60});
+	chrome.alarms.create(Alarm.REFETCH_CHECK, {"delayInMinutes":1, "periodInMinutes":60});
 
 	chrome.alarms.onAlarm.addListener(function(alarm) {
 		logDebug("Alarm fired: "+ alarm.name +" ("+ new Date(alarm.scheduledTime).toLocaleString() +")");
 
-		if (alarm.name == ALARM_REFETCH_CHECK) {
+		if (alarm.name == Alarm.REFETCH_CHECK) {
 			fetchBlockListIfExpired();
 		}
-		if (alarm.name == ALARM_FETCH_BLOCK_LIST) {
+		if (alarm.name == Alarm.FETCH_BLOCK_LIST) {
 			chrome.storage.local.remove(["block_list_fetch_state"]);
 
 			var fetchState = backgroundState["block_list_fetch_state"];
@@ -655,7 +649,7 @@ function fetchBlockListBackend(fetchState) {
 					if (chrome.runtime.lasterror) {
 						logWarn(chrome.runtime.lastError.message);
 					} else {
-						chrome.alarms.create(ALARM_FETCH_BLOCK_LIST, {"delayInMinutes":deltaMin});
+						chrome.alarms.create(Alarm.FETCH_BLOCK_LIST, {"delayInMinutes":deltaMin});
 					}
 				}
 			);
@@ -728,7 +722,7 @@ function abortFetchingBlockList() {
 		backgroundState["block_list_fetch_state"]["doomed"] = true;
 		backgroundState["block_list_fetch_state"] = null;
 	}
-	chrome.alarms.clear(ALARM_FETCH_BLOCK_LIST);
+	chrome.alarms.clear(Alarm.FETCH_BLOCK_LIST);
 	chrome.storage.local.remove(["block_list_fetch_state"]);
 }
 
