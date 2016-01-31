@@ -1,6 +1,6 @@
 {
   "name": "ReadNoEvil",
-  "description": "Prune Twitter search results and timelines to omit users you've blocked.",
+  "description": "Prune Twitter/Tweetdeck search results and timelines to omit users you've blocked.",
   "version": "0.0.1",
   "homepage_url": "https://github.com/Vhati/ReadNoEvil",
 

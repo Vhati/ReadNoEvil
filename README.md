@@ -24,7 +24,7 @@ This extension fixes Tweetdeck the hard way. It connects to Twitter - acting as 
 Setup
 -----
 
-Go to chrome://extensions/ and bring up the options for this extension.
+Go to [chrome://extensions/](chrome://extensions/) and bring up the options for this extension.
 
 In order to connect to Twitter on your behalf, you'll need to do a one-time PIN authorization. After that, click the "Fetch Current Block List" button.
 
@@ -41,7 +41,7 @@ Google only allows packaged extensions to be installed via the web store. This i
 Developers can load the source directly, by doing the following.
 
 * Save the chrome folder from this repository somewhere on your hard drive.
-* Go to chrome://extensions/
+* Go to [chrome://extensions/](chrome://extensions/)
 * Enable "Developer Mode".
 * Click "Load unpacked extension" and choose that folder.
 
