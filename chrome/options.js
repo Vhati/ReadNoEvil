@@ -94,7 +94,8 @@ function setTimedField(name, value) {
 var timedFieldsState = {};  // Dict of name:{node, timer_id, last_value, callback}
 
 var optionsState = {};
-optionsState["redacting_box"] = null;
+optionsState["redacting_vanilla_box"] = null;
+optionsState["redacting_tweetdeck_box"] = null;
 optionsState["request_pin_btn"] = null;
 optionsState["input_pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
@@ -109,9 +110,13 @@ var backgroundPort = chrome.runtime.connect({"name":"options"});
 
 backgroundPort.onMessage.addListener(
 	function(message, sender, sendResponse) {
-		if (message.type == "set_redacting") {
+		if (message.type == "set_redacting_vanilla") {
 			var b = Boolean(message.value);
-			optionsState["redacting_box"].checked = b;
+			optionsState["redacting_vanilla_box"].checked = b;
+		}
+		else if (message.type == "set_redacting_tweetdeck") {
+			var b = Boolean(message.value);
+			optionsState["redacting_tweetdeck_box"].checked = b;
 		}
 		else if (message.type == "set_block_list_fetch_interval") {
 			setTimedField("fetch_interval_field", message.value);
@@ -141,7 +146,8 @@ backgroundPort.onMessage.addListener(
 
 
 document.addEventListener("DOMContentLoaded", function() {
-	optionsState["redacting_box"] = document.getElementById("redacting-box");
+	optionsState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
+	optionsState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
 	optionsState["input_pin_field"] = document.getElementById("input-pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
@@ -150,8 +156,12 @@ document.addEventListener("DOMContentLoaded", function() {
 	optionsState["fetch_block_list_btn"] = document.getElementById("fetch-block-list-btn");
 	optionsState["fetch_interval_field"] = document.getElementById("fetch-interval-field");
 
-	optionsState["redacting_box"].addEventListener("change", function() {
-		backgroundPort.postMessage({"type":"set_redacting", "value":Boolean(optionsState["redacting_box"].checked)});
+	optionsState["redacting_vanilla_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redacting_vanilla", "value":Boolean(optionsState["redacting_vanilla_box"].checked)});
+	});
+
+	optionsState["redacting_tweetdeck_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redacting_tweetdeck", "value":Boolean(optionsState["redacting_tweetdeck_box"].checked)});
 	});
 
 	optionsState["request_pin_btn"].addEventListener("click", function() {

@@ -22,7 +22,8 @@ function popupLog(message) {
 
 
 var popupState = {};
-popupState["redacting_box"] = null;
+popupState["redacting_vanilla_box"] = null;
+popupState["redacting_tweetdeck_box"] = null;
 popupState["redact_all_box"] = null;
 
 var backgroundPort = chrome.runtime.connect({"name":"popup"});
@@ -31,9 +32,13 @@ var backgroundPort = chrome.runtime.connect({"name":"popup"});
 
 backgroundPort.onMessage.addListener(
 	function(message, sender, sendResponse) {
-		if (message.type == "set_redacting") {
+		if (message.type == "set_redacting_vanilla") {
 			var b = Boolean(message.value);
-			popupState["redacting_box"].checked = b;
+			popupState["redacting_vanilla_box"].checked = b;
+		}
+		else if (message.type == "set_redacting_tweetdeck") {
+			var b = Boolean(message.value);
+			popupState["redacting_tweetdeck_box"].checked = b;
 		}
 		else if (message.type == "set_redact_all") {
 			var b = Boolean(message.value);
@@ -45,11 +50,16 @@ backgroundPort.onMessage.addListener(
 
 
 document.addEventListener("DOMContentLoaded", function() {
-	popupState["redacting_box"] = document.getElementById("redacting-box");
+	popupState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
+	popupState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
 	popupState["redact_all_box"] = document.getElementById("redact-all-box");
 
-	popupState["redacting_box"].addEventListener("change", function() {
-		backgroundPort.postMessage({"type":"set_redacting", "value":Boolean(popupState["redacting_box"].checked)});
+	popupState["redacting_vanilla_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redacting_vanilla", "value":Boolean(popupState["redacting_vanilla_box"].checked)});
+	});
+
+	popupState["redacting_tweetdeck_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redacting_tweetdeck", "value":Boolean(popupState["redacting_tweetdeck_box"].checked)});
 	});
 
 	popupState["redact_all_box"].addEventListener("change", function() {

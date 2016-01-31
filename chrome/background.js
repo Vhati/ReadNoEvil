@@ -27,7 +27,7 @@ function backgroundLog(message) {
 
 function backgroundInit() {
 	chrome.storage.local.get(
-		["oauth_key", "oauth_secret", "redacting", "block_list_fetch_interval", "block_list_timestamp", "block_list", "block_list_fetch_state"],
+		["oauth_key", "oauth_secret", "redacting_vanilla", "redacting_tweetdeck", "block_list_fetch_interval", "block_list_timestamp", "block_list", "block_list_fetch_state"],
 		function(data) {
 			if (chrome.runtime.lasterror) {
 				throw new Error(chrome.runtime.lastError.message);
@@ -55,7 +55,8 @@ function backgroundInit() {
 				newFetchInterval = data.block_list_fetch_interval;
 			}
 
-			setRedacting(Boolean(data.redacting), false);
+			setRedactingVanilla(Boolean(data.redacting_vanilla), false);
+			setRedactingTweetdeck(Boolean(data.redacting_tweetdeck), false);
 			setBlockListFetchInterval(newFetchInterval, false);
 			setBlockList(newBlockList, newBlockListStamp, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
@@ -126,13 +127,22 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 	port.onMessage.addListener(
 		function(message, sender, sendResponse) {
-			if (message.type == "set_redacting") {
+			if (message.type == "set_redacting_vanilla") {
 				backgroundLog("Message received: "+ message.type +", "+ message.value);
 				// Comes from options or popup.
 
 				var b = Boolean(message.value);
-				if (b != backgroundState["redacting"]) {
-					setRedacting(b, true);
+				if (b != backgroundState["redacting_vanilla"]) {
+					setRedactingVanilla(b, true);
+				}
+			}
+			else if (message.type == "set_redacting_tweetdeck") {
+				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				// Comes from options or popup.
+
+				var b = Boolean(message.value);
+				if (b != backgroundState["redacting_tweetdeck"]) {
+					setRedactingTweetdeck(b, true);
 				}
 			}
 			else if (message.type == "show_page_action") {
@@ -143,7 +153,8 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "init_content") {
 				backgroundLog("Content init");
 
-				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
+				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
+				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 			}
 			else if (message.type == "test_evilness") {
 				//backgroundLog("Testing evilness: "+ message.userIds.join());
@@ -162,7 +173,8 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "init_options") {
 				backgroundLog("Options init");
 
-				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
+				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
+				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription()});
@@ -207,7 +219,8 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "init_popup") {
 				backgroundLog("Popup init");
 
-				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
+				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
+				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 				port.postMessage({"type":"set_redact_all", "value":backgroundState["redact_all"]});
 			}
 			else if (message.type == "set_redact_all") {
@@ -710,19 +723,42 @@ function fetchBlockListIfExpired() {
 
 
 /**
- * Toggles the redacting state and notifies other scripts.
+ * Toggles the vanilla redacting state and notifies other scripts.
  *
  * @param {Boolean} b - The new redacting state.
  * @param {Boolean} store - True to set localstorage, false otherwise.
  */
-function setRedacting(b, store) {
-	backgroundState["redacting"] = Boolean(b);
+function setRedactingVanilla(b, store) {
+	backgroundState["redacting_vanilla"] = Boolean(b);
 
-	broadcastMessage("all", {"type":"set_redacting", "value":backgroundState["redacting"]});
+	broadcastMessage("all", {"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 
 	if (store) {
 		chrome.storage.local.set(
-			{"redacting":backgroundState["redacting"]},
+			{"redacting_vanilla":backgroundState["redacting_vanilla"]},
+			function() {
+				if (chrome.runtime.lasterror) {
+					backgroundLog(chrome.runtime.lastError.message);
+				}
+			}
+		);
+	}
+}
+
+/**
+ * Toggles the tweetdeck redacting state and notifies other scripts.
+ *
+ * @param {Boolean} b - The new redacting state.
+ * @param {Boolean} store - True to set localstorage, false otherwise.
+ */
+function setRedactingTweetdeck(b, store) {
+	backgroundState["redacting_tweetdeck"] = Boolean(b);
+
+	broadcastMessage("all", {"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
+
+	if (store) {
+		chrome.storage.local.set(
+			{"redacting_tweetdeck":backgroundState["redacting_tweetdeck"]},
 			function() {
 				if (chrome.runtime.lasterror) {
 					backgroundLog(chrome.runtime.lastError.message);
@@ -814,7 +850,8 @@ var consumerSecret = "Zkmlr1W3F4SQUMjcHNsuhL03FzSC9lhe9ZNJGMRYUpsnL4A14v";
 codebird.setConsumerKey(consumerKey, consumerSecret);
 
 var backgroundState = {};
-backgroundState["redacting"] = false;
+backgroundState["redacting_vanilla"] = false;
+backgroundState["redacting_tweetdeck"] = false;
 backgroundState["redact_all"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();

@@ -700,7 +700,7 @@ backgroundPort.onMessage.addListener(
 				if (evilness) redactUser(userId);
 			}
 		}
-		else if (message.type == "set_redacting") {
+		else if (message.type == "set_redacting_tweetdeck") {
 			contentLog("Message received: "+ message.type +", "+ message.value);
 			var b = Boolean(message.value);
 			if (b && b != contentState["redacting"]) {
