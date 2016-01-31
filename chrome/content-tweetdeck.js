@@ -1,18 +1,54 @@
-var contentDebug = true;  // Edit this to toggle logging/alerts.
+var LogLevel = {
+	NONE: 0,
+	ERROR: 1,
+	WARN: 2,
+	INFO: 3,
+	NOTICE: 4,
+	DEBUG: 5,
+	TRACE: 6
+};
+
+var verbosity = LogLevel.DEBUG;
 
 
 
 /**
  * Logs a message.
  *
- * Edit the "contentDebug" global var to toggle logging.
+ * Edit the "verbosity" global var to toggle logging.
  *
  * Messages will appear in the active tab's console.
+ *
+ * @param {string} message
  */
-function contentLog(message) {
-	if (contentDebug) {
-		console.log(message);
+function log(message, level) {
+	if (verbosity >= level) {
+		if (level == LogLevel.ERROR) {
+			console.error(message);
+		}
+		else if (level == LogLevel.WARN) {
+			console.warn(message);
+		}
+		else {
+			console.log(message);
+		}
 	}
+}
+
+function logDebug(message) {
+	log(message, LogLevel.DEBUG);
+}
+
+function logInfo(message) {
+	log(message, LogLevel.NOTICE);
+}
+
+function logWarn(message) {
+	log(message, LogLevel.WARN);
+}
+
+function logError(message) {
+	log(message, LogLevel.ERROR);
 }
 
 
@@ -178,7 +214,7 @@ function initStateVars() {
 
 	var colsDiv = document.querySelector("div#container");
 	if (colsDiv == null) {
-		contentLog("No columns container yet");
+		logDebug("No columns container yet");
 		return;
 	}
 	contentState["cols_div"] = colsDiv;
@@ -198,11 +234,11 @@ function initStateVars() {
  * clutter from past meddling will be removed.
  */
 function contentInit() {
-	contentLog("Tweetdeck content script started");
+	logInfo("Tweetdeck content script started");
 
 	var appDiv = document.querySelector("div.application");
 	if (appDiv == null) {
-		contentLog("No application div!? Aborting");
+		logInfo("No application div!? Aborting");
 		return;
 	}
 
@@ -210,7 +246,7 @@ function contentInit() {
 
 	initStateVars();
 	if (contentState["cols_div"] != null) {
-		contentLog("Tweetdeck page with columns loaded");
+		logInfo("Tweetdeck page with columns loaded");
 
 		backgroundPort.postMessage({type:"init_content"});
 	}
@@ -229,12 +265,12 @@ function contentInit() {
 			}
 			initStateVars();
 			if (contentState["cols_div"] != null) {
-				contentLog("Tweetdeck page content changed, now has columns");
+				logInfo("Tweetdeck page content changed, now has columns");
 
 				backgroundPort.postMessage({type:"init_content"});
 			}
 			else {
-				contentLog("Tweetdeck page content changed, no columns present");
+				logInfo("Tweetdeck page content changed, no columns present");
 			}
 		}
 	});
@@ -254,7 +290,7 @@ function contentInit() {
  * @returns {Object} - The cached info, or null.
  */
 function registerColumn(columnNode) {
-	//contentLog("Column registered");
+	//logDebug("Column registered");
 
 	// Enforce uniqueness.
 	var columnInfo = null;
@@ -340,7 +376,7 @@ function registerItem(node, itemType) {
 	var oldInfo = getItemInfo(node)
 	if (oldInfo != null) return oldInfo;
 
-	//contentLog("Stream item registered");
+	//logDebug("Stream item registered");
 
 	var userIds = getItemUsers(node, itemType);
 
@@ -508,7 +544,7 @@ function redactUser(userId) {
 			setItemRedacted(itemInfo, true);
 		}
 	}
-	//contentLog("Redacted a user id "+ userId +" (count: "+ count +")");
+	//logDebug("Redacted a user id "+ userId +" (count: "+ count +")");
 }
 
 /**
@@ -525,7 +561,7 @@ function isItemTainted(itemInfo) {
 		var userId = userIds[i];
 		evilness = getUserEvilness(userId);
 		if (evilness) {
-			//contentLog("Found a naughty user id "+ userId);
+			//logDebug("Found a naughty user id "+ userId);
 			break;
 		}
 	}
@@ -586,7 +622,7 @@ function setColumnRedacted(columnInfo, b) {
  * Registers all column and stream-item elements currently present.
  */
 function registerAllColumns() {
-	contentLog("Registering all columns");  // TODO: Remove me.
+	logDebug("Registering all columns");  // TODO: Remove me.
 
 	var columnSections = contentState["cols_div"].querySelectorAll(":scope > div.app-columns > section.column");
 	for (var i=0; i < columnSections.length; i++) {
@@ -600,7 +636,7 @@ function registerAllColumns() {
  * Stream-items' redaction status will be unaffected. Call setAllItemsRedacted(false) beforehand!
  */
 function unregisterAllColumns() {
-	//contentLog("Unregistering all columns");  // TODO: Remove me.
+	//logDebug("Unregistering all columns");  // TODO: Remove me.
 
 	var i = contentState["columns"].length;
 	while (i--) {
@@ -682,7 +718,7 @@ backgroundPort.onMessage.addListener(
 		if (contentState["cols_div"] == null) return;  // No cols div, ignore all messages.
 
 		if (message.type == "reset_evilness") {
-			contentLog("Message received: "+ message.type);
+			logDebug("Message received: "+ message.type);
 			resetUsersEvilness();
 			setAllItemsRedacted(false);
 
@@ -690,7 +726,7 @@ backgroundPort.onMessage.addListener(
 			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
 		}
 		else if (message.type == "evilness_result") {
-			//contentLog("Message received: "+ message.type +", "+ message.value);
+			//logDebug("Message received: "+ message.type +", "+ message.value);
 			for (key in message.value) {
 				if (!message.value.hasOwnProperty(key)) continue;
 
@@ -701,7 +737,7 @@ backgroundPort.onMessage.addListener(
 			}
 		}
 		else if (message.type == "set_redacting_tweetdeck") {
-			contentLog("Message received: "+ message.type +", "+ message.value);
+			logDebug("Message received: "+ message.type +", "+ message.value);
 			var b = Boolean(message.value);
 			if (b && b != contentState["redacting"]) {
 				// Monitor if not already doing so and redact.

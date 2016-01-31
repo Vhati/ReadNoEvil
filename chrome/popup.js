@@ -2,21 +2,14 @@
 // To get a console window, right-click the icon and "inspect popup".
 
 
-var popupDebug = true;  // Edit this to toggle logging/alerts.
-
-
 
 /**
- * Logs a message.
- *
- * Edit the "popupDebug" global var to toggle logging.
+ * Logs a debug message, via the background page.
  *
  * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
  */
-function popupLog(message) {
-	if (popupDebug) {
-		chrome.extension.getBackgroundPage().console.log(message);
-	}
+function logDebug(message) {
+	chrome.extension.getBackgroundPage().logDebug(message);
 }
 
 

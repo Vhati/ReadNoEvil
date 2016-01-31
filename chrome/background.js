@@ -1,7 +1,16 @@
-// To get a console window, visit chrome://extensions/ and click "background page".
+var LogLevel = {
+	NONE: 0,
+	ERROR: 1,
+	WARN: 2,
+	INFO: 3,
+	NOTICE: 4,
+	DEBUG: 5,
+	TRACE: 6
+};
+
+var verbosity = LogLevel.DEBUG;
 
 
-var backgroundDebug = true;  // Edit this to toggle logging/alerts.
 
 
 
@@ -13,14 +22,40 @@ var ALARM_REFETCH_CHECK = "fetch_block_list_if_expired";
 /**
  * Logs a message.
  *
- * Edit the "backgroundDebug" global var to toggle logging.
+ * Edit the "verbosity" global var to toggle logging.
  *
  * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
+ *
+ * @param {string} message
  */
-function backgroundLog(message) {
-	if (backgroundDebug) {
-		console.log(message);
+function log(message, level) {
+	if (verbosity >= level) {
+		if (level == LogLevel.ERROR) {
+			console.error(message);
+		}
+		else if (level == LogLevel.WARN) {
+			console.warn(message);
+		}
+		else {
+			console.log(message);
+		}
 	}
+}
+
+function logDebug(message) {
+	log(message, LogLevel.DEBUG);
+}
+
+function logInfo(message) {
+	log(message, LogLevel.NOTICE);
+}
+
+function logWarn(message) {
+	log(message, LogLevel.WARN);
+}
+
+function logError(message) {
+	log(message, LogLevel.ERROR);
 }
 
 
@@ -62,21 +97,21 @@ function backgroundInit() {
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
 
 			if (data.oauth_key && data.oauth_secret) {
-				backgroundLog("Using cached Twitter credentials");
+				logInfo("Using cached Twitter credentials");
 				codebird.setToken(data.oauth_key, data.oauth_secret);
 				setTwitterAuthorized(true);
 			}
 			else {
-				backgroundLog("No cached Twitter credentials to use");
+				logInfo("No cached Twitter credentials to use");
 			}
 
 			// Print any pending alarms. Then set up alarm handlers.
 			chrome.alarms.getAll(function(alarms) {
 				if (alarms.length > 0) {
-					backgroundLog("Pending alarms...");
+					logDebug("Pending alarms...");
 					for (var i=0; i < alarms.length; i++) {
 						var a = alarms[i];
-						backgroundLog("  "+ a.name +" ("+ new Date(a.scheduledTime).toLocaleTimeString() +")");
+						logDebug("  "+ a.name +" ("+ new Date(a.scheduledTime).toLocaleTimeString() +")");
 					}
 				}
 
@@ -117,7 +152,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 	var portName = port.name;
 	if (!portName || portName == "all" || !(portName in backgroundState["ports"])) portName = "unknown";
-	backgroundLog("A new port connected: "+ portName);
+	logDebug("A new port connected: "+ portName);
 
 	backgroundState["ports"]["all"].push(port);
 	backgroundState["ports"][portName].push(port);
@@ -128,7 +163,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 	port.onMessage.addListener(
 		function(message, sender, sendResponse) {
 			if (message.type == "set_redacting_vanilla") {
-				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				logDebug("Message received: "+ message.type +", "+ message.value);
 				// Comes from options or popup.
 
 				var b = Boolean(message.value);
@@ -137,7 +172,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				}
 			}
 			else if (message.type == "set_redacting_tweetdeck") {
-				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				logDebug("Message received: "+ message.type +", "+ message.value);
 				// Comes from options or popup.
 
 				var b = Boolean(message.value);
@@ -151,13 +186,13 @@ chrome.runtime.onConnect.addListener(function(port) {
 				// Pretend to handle "No tab with id: ##" error. To stop Chrome printing it.
 			}
 			else if (message.type == "init_content") {
-				backgroundLog("Content init");
+				logInfo("Content init");
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 			}
 			else if (message.type == "test_evilness") {
-				//backgroundLog("Testing evilness: "+ message.userIds.join());
+				//logDebug("Testing evilness: "+ message.userIds.join());
 				results = {};
 				for (var i=0; i < message.userIds.length; i++) {
 					var userId = message.userIds[i];
@@ -171,7 +206,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				port.postMessage({"type":"evilness_result", "value":results});
 			}
 			else if (message.type == "init_options") {
-				backgroundLog("Options init");
+				logInfo("Options init");
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
@@ -206,7 +241,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				fetchBlockList();
 			}
 			else if (message.type == "set_block_list_fetch_interval") {
-				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				logDebug("Message received: "+ message.type +", "+ message.value);
 				var interval = message.value.replace(/[^0-9]/g, "");
 				if (interval == "") interval = 0;
 
@@ -217,14 +252,14 @@ chrome.runtime.onConnect.addListener(function(port) {
 				}
 			}
 			else if (message.type == "init_popup") {
-				backgroundLog("Popup init");
+				logInfo("Popup init");
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 				port.postMessage({"type":"set_redact_all", "value":backgroundState["redact_all"]});
 			}
 			else if (message.type == "set_redact_all") {
-				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				logDebug("Message received: "+ message.type +", "+ message.value);
 
 				backgroundState["redact_all"] = Boolean(message.value);
 				broadcastMessage("popup", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
@@ -258,7 +293,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundState["ports"][portName].splice(i, 1);
 			}
 		}
-		//backgroundLog("A port disconnected: "+ portName);
+		logDebug("A port disconnected: "+ portName);
 	});
 });
 
@@ -280,7 +315,7 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 		);
 
 		//if (key == "redacting") {
-			//backgroundLog("Storage key 'redacting' changed to "+ storageChange.newValue);
+			//logDebug("Storage key 'redacting' changed to "+ storageChange.newValue);
 		//}
 	}
 });
@@ -303,7 +338,7 @@ function alarmsInit() {
 	chrome.alarms.create(ALARM_REFETCH_CHECK, {"delayInMinutes":1, "periodInMinutes":60});
 
 	chrome.alarms.onAlarm.addListener(function(alarm) {
-		backgroundLog("Alarm fired: "+ alarm.name +" ("+ new Date(alarm.scheduledTime).toLocaleString() +")");
+		logDebug("Alarm fired: "+ alarm.name +" ("+ new Date(alarm.scheduledTime).toLocaleString() +")");
 
 		if (alarm.name == ALARM_REFETCH_CHECK) {
 			fetchBlockListIfExpired();
@@ -400,17 +435,17 @@ function getBlockListDescription() {
  * @param [callback] - Callback function f(reply, err).
  */
 function verifyCredentials(callback) {
-	backgroundLog("Verifying credentials");
+	logInfo("Verifying credentials");
 
 	twitterCall(
 		"account_verifyCredentials",
 		{},
 		function(reply, rate, err) {
 			if (err) {
-				backgroundLog("Credentials verification error: "+ err.error);
+				logWarn("Credentials verification error: "+ err.error);
 			}
 			else {
-				backgroundLog("Credentials verified: "+ reply.screen_name);
+				logInfo("Credentials verified: "+ reply.screen_name);
 			}
 			if (callback) callback(reply, err);
 		}
@@ -425,20 +460,20 @@ function verifyCredentials(callback) {
  * This is the first step in getting new credentials.
  */
 function requestPIN() {
-	backgroundLog("Fetching an oauth PIN request token");
+	logInfo("Fetching an oauth PIN request token");
 	twitterCall(
 		"oauth_requestToken",
 		{"oauth_callback":"oob"},
 		function(reply, rate, err) {
 			if (err) {
-				backgroundLog("Oauth token request failed: "+ err.error);
+				logInfo("Oauth token request failed: "+ err.error);
 				return;
 			}
 			if (reply) {
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
 				setTwitterAuthorized(false);
 
-				backgroundLog("Requesting an oauth PIN url");
+				logInfo("Requesting an oauth PIN url");
 				twitterCall(
 					"oauth_authorize",
 					{},
@@ -455,18 +490,18 @@ function requestPIN() {
 function submitPIN(pin) {
 	if (!pin) return;
 
-	backgroundLog("Submitting pin: "+ pin);
+	logInfo("Submitting pin: "+ pin);
 	twitterCall(
 		"oauth_accessToken",
 		{"oauth_verifier":pin},
 		function(reply, rate, err) {
 			if (err) {
-				backgroundLog("Oauth PIN submission failed: "+ err.error);
+				logInfo("Oauth PIN submission failed: "+ err.error);
 				return;
 			}
 			if (reply) {
 				announceStatus("PIN accepted. New credentials have been set.", "notice", false);
-				backgroundLog("Applying new credentials");
+				logInfo("Applying new credentials");
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
 				setTwitterAuthorized(true);
 
@@ -474,7 +509,7 @@ function submitPIN(pin) {
 					{"oauth_key":reply.oauth_token, "oauth_secret":reply.oauth_token_secret},
 					function() {
 						if (chrome.runtime.lasterror) {
-							backgroundLog(chrome.runtime.lastError.message);
+							logWarn(chrome.runtime.lastError.message);
 						}
 					}
 				);
@@ -508,7 +543,7 @@ function twitterCall(methodName, params, callback) {
 			//   https://github.com/jublonet/codebird-js/issues/115
 			//
 			if (rate && rate.hasOwnProperty("remaining")) {
-				backgroundLog("TwitterAPI "+ methodName +": "+ rate.remaining +" calls remaining");
+				logDebug("TwitterAPI "+ methodName +": "+ rate.remaining +" calls remaining");
 			}
 			setLimits(methodName, rate);
 			callback(reply, rate, err);
@@ -529,8 +564,8 @@ function fetchLimits() {
 		"application_rateLimitStatus",
 		{"resources":families},
 		function(reply, rate, err) {
-			if (err) {                                             // Normally undefined.
-				backgroundLog("Limits fetch error: "+ err.error);  // Twitter complained or socket timeout.
+			if (err) {                                       // Normally undefined.
+				logWarn("Limits fetch error: "+ err.error);  // Twitter complained or socket timeout.
 			}
 
 			for (family in reply.resources) {
@@ -548,7 +583,7 @@ function fetchLimits() {
 					methodName = methodName.replace(/\//, "_");
 					setLimits(rates[methodPath]);
 
-					//backgroundLog("Limit cached: "+ methodName);
+					//logDebug("Limit cached: "+ methodName);
 				}
 			}
 		}
@@ -597,7 +632,7 @@ function fetchBlockListBackend(fetchState) {
 		var resetStamp = rate.reset * 1000 + 1000;  // Convert Twitter secs to JS msecs, +1 sec to cover the difference.
 
 		if (resetStamp - nowStamp < -2 * 24 * 60 * 60 * 1000) {
-			backgroundLog("Block list fetch error: Twitter's rate limit 'reset' timestamp is in the distant past!? (reset: "+ resetStamp +", now: "+ nowStamp +")");
+			logWarn("Block list fetch error: Twitter's rate limit 'reset' timestamp is in the distant past!? (reset: "+ resetStamp +", now: "+ nowStamp +")");
 			abortFetchingBlockList();
 			return;
 		}
@@ -611,14 +646,14 @@ function fetchBlockListBackend(fetchState) {
 			var deltaMin = Math.max((resetStamp - nowStamp) / 1000 / 60 + 0.5, 1);  // Alarm args are minutes >= 1.0.
 			var nextDate = new Date(nowStamp + (deltaMin * 60 * 1000));
 
-			backgroundLog("Block list fetch delayed by "+ deltaMin.toFixed(1) +" minutes (until "+ nextDate.toLocaleTimeString() +")");
+			logInfo("Block list fetch delayed by "+ deltaMin.toFixed(1) +" minutes (until "+ nextDate.toLocaleTimeString() +")");
 			announceStatus("Block list fetch delayed by "+ deltaMin.toFixed(1) +" minutes (until "+ nextDate.toLocaleTimeString() +")", "warning", true);
 
 			chrome.storage.local.set(
 				{"block_list_fetch_state":fetchState},
 				function() {
 					if (chrome.runtime.lasterror) {
-						backgroundLog(chrome.runtime.lastError.message);
+						logWarn(chrome.runtime.lastError.message);
 					} else {
 						chrome.alarms.create(ALARM_FETCH_BLOCK_LIST, {"delayInMinutes":deltaMin});
 					}
@@ -628,7 +663,7 @@ function fetchBlockListBackend(fetchState) {
 			return;
 		}
 	}
-	backgroundLog("Block list fetch (count: "+ fetchState["new_list"].length +", cursor: "+ fetchState["next_cursor_str"] +")");
+	logInfo("Block list fetch (count: "+ fetchState["new_list"].length +", cursor: "+ fetchState["next_cursor_str"] +")");
 	announceStatus("Fetching block list. Users so far: "+ fetchState["new_list"].length, "notice", true);
 
 	twitterCall(
@@ -636,7 +671,7 @@ function fetchBlockListBackend(fetchState) {
 		{"cursor":fetchState["next_cursor_str"], "stringify_ids":"true"},
 		function(reply, rate, err) {
 			if (err) {                                                 // Normally undefined.
-				backgroundLog("Block list fetch error: "+ err.error);  // Twitter complained or socket timeout.
+				logWarn("Block list fetch error: "+ err.error);        // Twitter complained or socket timeout.
 				announceStatus("Error fetching block list: "+ err.error, "error", true);
 				fetchState["doomed"] = true;
 				if (backgroundState["block_list_fetch_state"] == fetchState) {
@@ -653,7 +688,7 @@ function fetchBlockListBackend(fetchState) {
 				fetchBlockListBackend(fetchState);
 			}
 			else {
-				backgroundLog("Block list fetch completed");
+				logInfo("Block list fetch completed");
 
 				setBlockList(fetchState["new_list"], Date.now(), true);
 
@@ -688,7 +723,7 @@ function fetchBlockList() {
  */
 function abortFetchingBlockList() {
 	if (backgroundState["block_list_fetch_state"] != null) {
-		backgroundLog("Aborting an existing block list fetch operation");
+		logInfo("Aborting an existing block list fetch operation");
 
 		backgroundState["block_list_fetch_state"]["doomed"] = true;
 		backgroundState["block_list_fetch_state"] = null;
@@ -713,7 +748,7 @@ function fetchBlockListIfExpired() {
 	if (daysOld > fetchInterval) {
 		// Note: toFixed(N) formats a float into a string with N decimal places (+ will concatenate!).
 
-		backgroundLog("Re-fetching expired block list (Age: "+ daysOld.toFixed(1) +" days, Interval: "+ fetchInterval +")");
+		logInfo("Re-fetching expired block list (Age: "+ daysOld.toFixed(1) +" days, Interval: "+ fetchInterval +")");
 		announceStatus("Re-fetching block list", "notice", true);
 
 		fetchBlockList();
@@ -738,7 +773,7 @@ function setRedactingVanilla(b, store) {
 			{"redacting_vanilla":backgroundState["redacting_vanilla"]},
 			function() {
 				if (chrome.runtime.lasterror) {
-					backgroundLog(chrome.runtime.lastError.message);
+					logWarn(chrome.runtime.lastError.message);
 				}
 			}
 		);
@@ -761,7 +796,7 @@ function setRedactingTweetdeck(b, store) {
 			{"redacting_tweetdeck":backgroundState["redacting_tweetdeck"]},
 			function() {
 				if (chrome.runtime.lasterror) {
-					backgroundLog(chrome.runtime.lastError.message);
+					logWarn(chrome.runtime.lastError.message);
 				}
 			}
 		);
@@ -784,7 +819,7 @@ function setBlockListFetchInterval(days, store) {
 			{"block_list_fetch_interval":backgroundState["block_list_fetch_interval"]},
 			function() {
 				if (chrome.runtime.lasterror) {
-					backgroundLog(chrome.runtime.lastError.message);
+					logWarn(chrome.runtime.lastError.message);
 				}
 			}
 		);
@@ -822,13 +857,13 @@ function setBlockList(new_list, timestamp, store) {
 			{"block_list_timestamp":backgroundState["block_list_timestamp"], "block_list":backgroundState["block_list"]},
 			function() {
 				if (chrome.runtime.lasterror) {
-					backgroundLog(chrome.runtime.lastError.message);
+					logWarn(chrome.runtime.lastError.message);
 				}
 				else {
 					chrome.storage.local.getBytesInUse(
 						"block_list",
 						function(bytes) {
-							backgroundLog("Block list saved, requiring "+ bytes +" bytes");
+							logDebug("Block list saved, requiring "+ bytes +" bytes");
 						}
 					);
 				}
@@ -838,7 +873,7 @@ function setBlockList(new_list, timestamp, store) {
 }
 
 function fetchDummyBlockList() {
-	backgroundLog("Fetching dummy block list");
+	logInfo("Fetching dummy block list");
 	setBlockList(["0987654321","12345678"], null);
 }
 

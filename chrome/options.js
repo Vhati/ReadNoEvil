@@ -4,21 +4,14 @@
 //   https://code.google.com/p/chromium/issues/detail?id=550217
 
 
-var optionsDebug = true;  // Edit this to toggle logging/alerts.
-
-
 
 /**
- * Logs a message.
- *
- * Edit the "optionsDebug" global var to toggle logging.
+ * Logs a debug message, via the background page.
  *
  * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
  */
-function optionsLog(message) {
-	if (optionsDebug) {
-		chrome.extension.getBackgroundPage().console.log(message);
-	}
+function logDebug(message) {
+	chrome.extension.getBackgroundPage().logDebug(message);
 }
 
 

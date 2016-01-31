@@ -1,18 +1,54 @@
-var contentDebug = true;  // Edit this to toggle logging/alerts.
+var LogLevel = {
+	NONE: 0,
+	ERROR: 1,
+	WARN: 2,
+	INFO: 3,
+	NOTICE: 4,
+	DEBUG: 5,
+	TRACE: 6
+};
+
+var verbosity = LogLevel.DEBUG;
 
 
 
 /**
  * Logs a message.
  *
- * Edit the "contentDebug" global var to toggle logging.
+ * Edit the "verbosity" global var to toggle logging.
  *
  * Messages will appear in the active tab's console.
+ *
+ * @param {string} message
  */
-function contentLog(message) {
-	if (contentDebug) {
-		console.log(message);
+function log(message, level) {
+	if (verbosity >= level) {
+		if (level == LogLevel.ERROR) {
+			console.error(message);
+		}
+		else if (level == LogLevel.WARN) {
+			console.warn(message);
+		}
+		else {
+			console.log(message);
+		}
 	}
+}
+
+function logDebug(message) {
+	log(message, LogLevel.DEBUG);
+}
+
+function logInfo(message) {
+	log(message, LogLevel.NOTICE);
+}
+
+function logWarn(message) {
+	log(message, LogLevel.WARN);
+}
+
+function logError(message) {
+	log(message, LogLevel.ERROR);
 }
 
 
@@ -140,11 +176,11 @@ function initStateVars() {
  * clutter from past meddling will be removed.
  */
 function contentInit() {
-	contentLog("Content script started");
+	logInfo("Content script started");
 
 	var navDiv = document.querySelector("div#page-container");
 	if (navDiv == null) {
-		contentLog("No page-container div!? Aborting");
+		logInfo("No page-container div!? Aborting");
 		return;
 	}
 
@@ -152,7 +188,7 @@ function contentInit() {
 
 	initStateVars();
 	if (contentState["stream_div"] != null) {
-		contentLog("Twitter page with a stream loaded");
+		logInfo("Twitter page with a stream loaded");
 
 		backgroundPort.postMessage({type:"init_content"});
 	}
@@ -175,12 +211,12 @@ function contentInit() {
 			}
 			initStateVars();
 			if (contentState["stream_div"] != null) {
-				contentLog("Twitter page content changed, now has a stream");
+				logInfo("Twitter page content changed, now has a stream");
 
 				backgroundPort.postMessage({type:"init_content"});
 			}
 			else {
-				contentLog("Twitter page content changed, no stream present");
+				logInfo("Twitter page content changed, no stream present");
 			}
 		}
 	});
@@ -205,7 +241,7 @@ function registerItem(node, itemType) {
 	var oldInfo = getItemInfo(node)
 	if (oldInfo != null) return oldInfo;
 
-	//contentLog("Stream item registered");
+	//logDebug("Stream item registered");
 
 	var userIds = getItemUsers(node, itemType);
 
@@ -239,7 +275,7 @@ function unregisterItem(itemInfo) {
 	var index = contentState["items"].indexOf(itemInfo);
 	if (index == -1) return;
 
-	//contentLog("Stream item unregistered");
+	//logDebug("Stream item unregistered");
 
 	contentState["items"].splice(index, 1);
 
@@ -362,7 +398,7 @@ function redactUser(userId) {
 			setItemRedacted(itemInfo, true);
 		}
 	}
-	//contentLog("Redacted a user id "+ userId +" (count: "+ count +")");
+	//logDebug("Redacted a user id "+ userId +" (count: "+ count +")");
 }
 
 /**
@@ -379,7 +415,7 @@ function isItemTainted(itemInfo) {
 		var userId = userIds[i];
 		evilness = getUserEvilness(userId);
 		if (evilness) {
-			//contentLog("Found a naughty user id "+ userId);
+			//logDebug("Found a naughty user id "+ userId);
 			break;
 		}
 	}
@@ -418,7 +454,7 @@ function setAllItemsRedacted(b) {
  * Registers all stream-item elements currently present.
  */
 function registerAllItems() {
-	contentLog("Registering all stream-items");  // TODO: Remove me.
+	logDebug("Registering all stream-items");  // TODO: Remove me.
 
 	var itemsNode = contentState["stream_div"].querySelector("ol#stream-items-id");
 	var dredgedItems = dredgeInterestingItems(itemsNode);
@@ -494,7 +530,7 @@ backgroundPort.onMessage.addListener(
 		if (contentState["stream_div"] == null) return;  // No stream, ignore all messages.
 
 		if (message.type == "reset_evilness") {
-			contentLog("Message received: "+ message.type);
+			logDebug("Message received: "+ message.type);
 			resetUsersEvilness();
 			setAllItemsRedacted(false);
 
@@ -502,7 +538,7 @@ backgroundPort.onMessage.addListener(
 			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
 		}
 		else if (message.type == "evilness_result") {
-			//contentLog("Message received: "+ message.type +", "+ message.value);
+			//logDebug("Message received: "+ message.type +", "+ message.value);
 			for (key in message.value) {
 				if (!message.value.hasOwnProperty(key)) continue;
 
@@ -513,7 +549,7 @@ backgroundPort.onMessage.addListener(
 			}
 		}
 		else if (message.type == "set_redacting_vanilla") {
-			contentLog("Message received: "+ message.type +", "+ message.value);
+			logDebug("Message received: "+ message.type +", "+ message.value);
 			var b = Boolean(message.value);
 			if (b && b != contentState["redacting"]) {
 				// Monitor if not already doing so and redact.
