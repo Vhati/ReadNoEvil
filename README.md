@@ -24,9 +24,10 @@ This extension fixes Tweetdeck the hard way. It connects to Twitter - acting as 
 Setup
 -----
 
-Go to [chrome://extensions/](chrome://extensions/) and bring up the options for this extension.
-
-In order to connect to Twitter on your behalf, you'll need to do a one-time PIN authorization. After that, click the "Fetch Current Block List" button.
+* Visit the [Chrome Web store](https://chrome.google.com/webstore/detail/readnoevil/acjbpdejcmhfhnfjbijokkjopiogkfim) and click "Add to Chrome".
+* Go to chrome://extensions/ and bring up the options for this extension.
+* In order for it to connect to Twitter on your behalf, you'll need to do a one-time PIN authorization.
+* Click the "Fetch Current Block List" button.
 
 Note: If your block list is enormous, fetching my take several minutes. Twitter's servers insert a delay after every 75,000 entries. This happens in the background, so you can safely switch to more interesting tabs.
 
@@ -36,13 +37,21 @@ Any time you're on Tweetdeck or Twitter.com, a clickable-icon will appear in the
 Installing a GitHub Snapshot
 ----------------------------
 
-Google only allows packaged extensions to be installed via the web store. This is a safety measure for end-users.
+Google only allows packaged extensions to be installed via the web store. This is a safety measure for end users.
 
 Developers can load the source directly, by doing the following.
 
 * Save the chrome folder from this repository somewhere on your hard drive.
-* Go to [chrome://extensions/](chrome://extensions/)
+* Go to chrome://extensions/
 * Enable "Developer Mode".
 * Click "Load unpacked extension" and choose that folder.
 
 This method is not recommended for everyday use, as Chrome will nag on startup to disable such extensions.
+
+
+Debugging
+---------
+
+* Each tab has its own log. While at Tweetdeck or Twitter.com, bring up the developer tools.
+* They communicate with a central hidden background page. Go to chrome://extensions/ and click "background page".
+* The options dialog and address bar icon's popup have hidden pages too. Right-click and "inspect". (They're usually quiet.)
