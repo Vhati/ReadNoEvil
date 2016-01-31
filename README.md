@@ -18,7 +18,7 @@ However Tweetdeck does *not* have that flag. Third party scripts don't have an e
 About
 -----
 
-This extension fixes Tweetdeck the hard way. It connects to Twitter - acting as an app - to fetch a list of blocked user ids. Whenever you're using Tweetdeck, this extension will monitor the page, check the list, and redact any tweets that contain a match.
+This extension fixes Tweetdeck the hard way. It connects to Twitter - acting as an app - to fetch a list of blocked user ids. Whenever you're on Tweetdeck or Twitter.com, this extension will monitor the page, check the list, and redact any tweets that contain a match.
 
 
 Setup
