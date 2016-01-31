@@ -5,6 +5,11 @@ var backgroundDebug = true;  // Edit this to toggle logging/alerts.
 
 
 
+var ALARM_FETCH_BLOCK_LIST = "fetch_block_list";
+var ALARM_REFETCH_CHECK = "fetch_block_list_if_expired";
+
+
+
 /**
  * Logs a message.
  *
@@ -22,31 +27,60 @@ function backgroundLog(message) {
 
 function backgroundInit() {
 	chrome.storage.local.get(
-		["redacting", "block_list_timestamp", "block_list"],
+		["oauth_key", "oauth_secret", "redacting", "block_list_fetch_interval", "block_list_timestamp", "block_list", "block_list_fetch_state"],
 		function(data) {
 			if (chrome.runtime.lasterror) {
-				backgroundLog(chrome.runtime.lastError.message);
+				throw new Error(chrome.runtime.lastError.message);
 			}
 
-			var new_block_list;
-			var new_block_list_timestamp;
+			var newFetchInterval = 0;
+			var newBlockList;
+			var newBlockListStamp;
 
 			if (data.block_list) {
-				new_block_list = data.block_list;
+				newBlockList = data.block_list;
 
 				if (data.block_list_timestamp) {
-					new_block_list_timestamp = data.block_list_timestamp;
+					newBlockListStamp = data.block_list_timestamp;
 				} else {
-					new_block_list_timestamp = Date.now();
+					newBlockListStamp = Date.now();
 				}
 			}
 			else {
-				new_block_list = [];
-				new_block_list_timestamp = Date.now();
+				newBlockList = [];
+				newBlockListStamp = Date.now();
+			}
+
+			if (data.block_list_fetch_interval != null) {
+				newFetchInterval = data.block_list_fetch_interval;
 			}
 
 			setRedacting(Boolean(data.redacting), false);
-			setBlockList(new_block_list, new_block_list_timestamp, false);
+			setBlockListFetchInterval(newFetchInterval, false);
+			setBlockList(newBlockList, newBlockListStamp, false);
+			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
+
+			if (data.oauth_key && data.oauth_secret) {
+				backgroundLog("Using cached Twitter credentials");
+				codebird.setToken(data.oauth_key, data.oauth_secret);
+				setTwitterAuthorized(true);
+			}
+			else {
+				backgroundLog("No cached Twitter credentials to use");
+			}
+
+			// Print any pending alarms. Then set up alarm handlers.
+			chrome.alarms.getAll(function(alarms) {
+				if (alarms.length > 0) {
+					backgroundLog("Pending alarms...");
+					for (var i=0; i < alarms.length; i++) {
+						var a = alarms[i];
+						backgroundLog("  "+ a.name +" ("+ new Date(a.scheduledTime).toLocaleTimeString() +")");
+					}
+				}
+
+				alarmsInit();
+			});
 		}
 	);
 }
@@ -62,7 +96,7 @@ function backgroundInit() {
  *   Displays this extension's clickable icon, in the address bar.
  *
  * test_evilness:
- *   param {string[]} message.userIds - A list of users to check against the black_list.
+ *   param {string[]} message.userIds - A list of users to check against the block_list.
  *   returns {Object.<string, Boolean>} - A dict of key:value pairs. True if on the list.
  *
  * get_storage:
@@ -96,7 +130,10 @@ chrome.runtime.onConnect.addListener(function(port) {
 				backgroundLog("Message received: "+ message.type +", "+ message.value);
 				// Comes from options or popup.
 
-				setRedacting(Boolean(message.value), true);
+				var b = Boolean(message.value);
+				if (b != backgroundState["redacting"]) {
+					setRedacting(b, true);
+				}
 			}
 			else if (message.type == "show_page_action") {
 				chrome.pageAction.show(port.sender.tab.id);
@@ -127,17 +164,21 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 				port.postMessage({"type":"set_redacting", "value":backgroundState["redacting"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
-				port.postMessage({"type":"set_status_text", "value":getBlockListStatusString()});
+				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
+				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
 			}
 			else if (message.type == "verify_twitter_credentials") {
 				verifyCredentials(function(reply, err) {
-					var s;
+					var status = {};
+					status.when = Date.now();
 					if (!Boolean(err)) {
-						s = "Credentials verified. Screen name: "+ reply.screen_name;
+						status.text = "Credentials verified. Screen name: "+ reply.screen_name;
+						status.severity = "notice";
 					} else {
-						s = "Credentials could not be verified: "+ err.error;
+						status.text = "Credentials could not be verified: "+ err.error;
+						status.severity = "error";
 					}
-					port.postMessage({"type":"set_status_text", "value":s});
+					port.postMessage({"type":"set_status_text", "value":status});
 				});
 				return true;
 			}
@@ -150,6 +191,17 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "fetch_block_list") {
 				fetchLimits();
 				fetchBlockList();
+			}
+			else if (message.type == "set_block_list_fetch_interval") {
+				backgroundLog("Message received: "+ message.type +", "+ message.value);
+				var interval = message.value.replace(/[^0-9]/g, "");
+				if (interval == "") interval = 0;
+
+				if (interval != backgroundState["block_list_fetch_interval"]) {
+					setBlockListFetchInterval(interval, true);
+					var status = {"text":"New fetch interval set: "+ interval, "severity":"notice", "when":Date.now()};
+					port.postMessage({"type":"set_status_text", "value":status});
+				}
 			}
 			else if (message.type == "init_popup") {
 				backgroundLog("Popup init");
@@ -223,6 +275,44 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 
 
 /**
+ * Sets up alarm handlers.
+ *
+ * DOM-based setInterval() is not rate-limited, but it will be forgotten if the script suspends.
+ *
+ * Alarms are limited to firing 1 per minute, but they will survive if the script suspends.
+ *
+ * Alarms even survive restarting the browser, so make sure relevant state vars are serialized.
+ *
+ * Any alarms which are past due will fire immediately.
+ */
+function alarmsInit() {
+	chrome.alarms.create(ALARM_REFETCH_CHECK, {"delayInMinutes":1, "periodInMinutes":60});
+
+	chrome.alarms.onAlarm.addListener(function(alarm) {
+		backgroundLog("Alarm fired: "+ alarm.name +" ("+ new Date(alarm.scheduledTime).toLocaleString() +")");
+
+		if (alarm.name == ALARM_REFETCH_CHECK) {
+			fetchBlockListIfExpired();
+		}
+		if (alarm.name == ALARM_FETCH_BLOCK_LIST) {
+			chrome.storage.local.remove(["block_list_fetch_state"]);
+
+			var fetchState = backgroundState["block_list_fetch_state"];
+			if (fetchState && !fetchState["doomed"]) {
+				announceStatus("Fetching block list", "notice", true);
+
+				fetchBlockListBackend(fetchState);
+			}
+			else {
+				backgroundState["block_list_fetch_state"] = null;
+			}
+		}
+	});
+}
+
+
+
+/**
  * Posts a message to all ports of a given type.
  *
  * @param {string|string[]} audience - One or more portNames.
@@ -251,11 +341,31 @@ function broadcastMessage(audience, message) {
  *
  * @param {string} text
  * @param {string} severity - One of: "notice", "warning", "error".
+ * @param {Boolean} persistent - If true, the message will be cached for getLastAnnouncedStatus().
  */
-function announceStatus(text, severity) {
-	broadcastMessage("all", {"type":"set_status_text", "value":text});
+function announceStatus(text, severity, persistent) {
+	var nowStamp = Date.now();
+	var status = {"text":text, "severity":severity, "when":nowStamp};
+	broadcastMessage("all", {"type":"set_status_text", "value":status});
+	if (persistent) {
+		backgroundState["last_status"] = status;
+	}
 }
 
+/**
+ * Returns the last persistent message passed to announceStatus().
+ *
+ * @returns {Object} - {text:string, severity:string, when:timestamp}
+ */
+function getLastAnnouncedStatus() {
+	return backgroundState["last_status"];
+}
+
+/**
+ * Returns a description of the block list.
+ *
+ * @returns {string}
+ */
 function getBlockListStatusString() {
 	var count = backgroundState["block_list"].length;
 	var stamp = backgroundState["block_list_timestamp"];
@@ -267,25 +377,6 @@ function getBlockListStatusString() {
 }
 
 
-
-function twitterInit() {
-	chrome.storage.local.get(
-		["oauth_key", "oauth_secret"],
-		function(data) {
-			if (chrome.runtime.lasterror) {
-				backgroundLog(chrome.runtime.lastError.message);
-			}
-			else if (data.oauth_key && data.oauth_secret) {
-				backgroundLog("Using cached Twitter credentials");
-				codebird.setToken(data.oauth_key, data.oauth_secret);
-				setTwitterAuthorized(true);
-			}
-			else {
-				backgroundLog("No cached Twitter credentials to use");
-			}
-		}
-	);
-}
 
 /**
  * Tests Twitter credentials and fetches user info.
@@ -360,7 +451,7 @@ function submitPIN(pin) {
 				return;
 			}
 			if (reply) {
-				announceStatus("PIN accepted. New credentials have been set.", "notice");
+				announceStatus("PIN accepted. New credentials have been set.", "notice", false);
 				backgroundLog("Applying new credentials");
 				codebird.setToken(reply.oauth_token, reply.oauth_token_secret);
 				setTwitterAuthorized(true);
@@ -394,13 +485,13 @@ function twitterCall(methodName, params, callback) {
 			if (reply) {
 				if (reply.hasOwnProperty("errors")) {
 					err = {"error":"code "+ reply.errors[0].code +", "+ reply.errors[0].message};
-
 				}
 			}
 
-			// rate's keys are defined, but sometimes the values are all null!?
+			// It's possible for rate to be defined, but with null values.
+			// If non-string args are passed to __call(), oauth breaks, and reply.errors will exist.
+			//
 			//   https://github.com/jublonet/codebird-js/issues/115
-			//   http://stackoverflow.com/questions/7462968/restrictions-of-xmlhttprequests-getresponseheader
 			//
 			if (rate && rate.hasOwnProperty("remaining")) {
 				backgroundLog("TwitterAPI "+ methodName +": "+ rate.remaining +" calls remaining");
@@ -418,14 +509,14 @@ function twitterCall(methodName, params, callback) {
  */
 function fetchLimits() {
 	// Families is a comma-separated list of method paths truncated at slash.
-  var families = "blocks";
+	var families = "blocks";
 
 	twitterCall(
 		"application_rateLimitStatus",
 		{"resources":families},
 		function(reply, rate, err) {
-			if (err) {                                               // Normally undefined.
-				backgroundLog("Limits fetch error: "+ err.error);      // Twitter complained or socket timeout.
+			if (err) {                                             // Normally undefined.
+				backgroundLog("Limits fetch error: "+ err.error);  // Twitter complained or socket timeout.
 			}
 
 			for (family in reply.resources) {
@@ -436,11 +527,12 @@ function fetchLimits() {
 					if (!rates.hasOwnProperty(methodPath)) continue;
 
 					// Convert methodPath to codebird names.
-					var methodName = methodPath.replace(/(_.)/, function(x) {return x.toUpperCase();})
+					var methodName = methodPath;
+					methodName = methodName.replace(/(_.)/, function(x) {return x.toUpperCase();})
 					methodName = methodName.replace(/(:.*)/, function(x) {return x.toUpperCase();})
 					methodName = methodName.replace(/^\//, "");
 					methodName = methodName.replace(/\//, "_");
-					twitterState["rate"][methodName] = rates[methodPath];
+					setLimits(rates[methodPath]);
 
 					//backgroundLog("Limit cached: "+ methodName);
 				}
@@ -451,6 +543,8 @@ function fetchLimits() {
 
 /**
  * Sets rate limit info for a Twitter method.
+ *
+ * Note; The reset timestamp is in seconds. Date.now() is in milliseconds.
  *
  * @param {string} methodName - A codebird method name.
  * @param {Object} rate - {limit:"number", remaining:"number", reset:"timestamp"} or null.
@@ -466,6 +560,8 @@ function setLimits(methodName, rate) {
 /**
  * Returns rate limit info for a Twitter method.
  *
+ * Note; The reset timestamp is in seconds. Date.now() is in milliseconds.
+ *
  * @param {string} methodName - A codebird method name.
  * @returns {Object} - {limit:"number", remaining:"number", reset:"timestamp"} or null.
  */
@@ -477,54 +573,61 @@ function getLimits(methodName) {
 
 
 function fetchBlockListBackend(fetchState) {
-	if (fetchState["doomed"]) {
-		if (fetchState["timeout_id"] != null) {
-			backgroundLog("Block list fetch callback cancelled (id: "+ fetchState["timeout_id"] +")");
-			window.clearTimeout(fetchState["timeout_id"]);
-			fetchState["timeout_id"] = null;
-		}
-		fetchState["new_list"] = [];
-		fetchState["next_cursor_str"] = "-1";
-		return;
-	}
+	if (!fetchState || fetchState["doomed"]) return;
 
-	fetchState["timeout_id"] = null;  // Presumably timeout is what called this func.
-
+	var nowStamp;
+	var resetStamp;
 	var rate = getLimits("blocks_ids");
-	if (rate != null && rate.remaining < 1) {
-		var resetStamp = rate.reset;
-		var resetDate = new Date(resetStamp);
-		var nowStamp =  Date.now();
-		var waitDelta = resetStamp - nowStamp;
+	if (rate != null) {
+		var nowStamp = Date.now();
+		var resetStamp = rate.reset * 1000 + 1000;  // Convert Twitter secs to JS msecs, +1 sec to cover the difference.
 
-		backgroundLog("Block list fetch delayed by "+ waitDelta +" seconds (until "+ resetDate.toLocaleString() +")");
-		announceStatus("Block list fetch delayed by "+ waitDelta +" seconds (until "+ resetDate.toLocaleString() +")", "warning");
-
-		if (waitDelta < 0) {
-			console.assert(waitDelta > 0, "Twitter's rate limit 'reset' timestamp is in the past!? (reset: "+ resetStamp +", now: "+ nowStamp +")");
+		if (resetStamp - nowStamp < -2 * 24 * 60 * 60 * 1000) {
+			backgroundLog("Block list fetch error: Twitter's rate limit 'reset' timestamp is in the distant past!? (reset: "+ resetStamp +", now: "+ nowStamp +")");
 			abortFetchingBlockList();
 			return;
 		}
+		else if (resetStamp - nowStamp < 0) {
+			rate = null;                            // The limit has been reset already.
+		}
 
-		fetchState["timeout_id"] = window.setTimeout(
-			function() {
-				fetchBlockListBackend(fetchState);
-			},
-			waitDelta
-		);
-		return;
+		if (rate != null && rate.remaining < 1) {
+
+			// Wait an extra 30 sec.
+			var deltaMin = Math.max((resetStamp - nowStamp) / 1000 / 60 + 0.5, 1);  // Alarm args are minutes >= 1.0.
+			var nextDate = new Date(nowStamp + (deltaMin * 60 * 1000));
+
+			backgroundLog("Block list fetch delayed by "+ deltaMin.toFixed(1) +" minutes (until "+ nextDate.toLocaleTimeString() +")");
+			announceStatus("Block list fetch delayed by "+ deltaMin.toFixed(1) +" minutes (until "+ nextDate.toLocaleTimeString() +")", "warning", true);
+
+			chrome.storage.local.set(
+				{"block_list_fetch_state":fetchState},
+				function() {
+					if (chrome.runtime.lasterror) {
+						backgroundLog(chrome.runtime.lastError.message);
+					} else {
+						chrome.alarms.create(ALARM_FETCH_BLOCK_LIST, {"delayInMinutes":deltaMin});
+					}
+				}
+			);
+
+			return;
+		}
 	}
 	backgroundLog("Block list fetch (count: "+ fetchState["new_list"].length +", cursor: "+ fetchState["next_cursor_str"] +")");
-	announceStatus("Block list fetch progress: "+ fetchState["new_list"].length, "notice");
+	announceStatus("Fetching block list. Users so far: "+ fetchState["new_list"].length, "notice", true);
 
 	twitterCall(
 		"blocks_ids",
 		{"cursor":fetchState["next_cursor_str"], "stringify_ids":"true"},
 		function(reply, rate, err) {
-			if (err) {                                               // Normally undefined.
+			if (err) {                                                 // Normally undefined.
 				backgroundLog("Block list fetch error: "+ err.error);  // Twitter complained or socket timeout.
-				announceStatus("Block list fetch error: "+ err.error, "error");
-				abortFetchingBlockList();
+				announceStatus("Error fetching block list: "+ err.error, "error", true);
+				fetchState["doomed"] = true;
+				if (backgroundState["block_list_fetch_state"] == fetchState) {
+					backgroundState["block_list_fetch_state"] = null;
+				}
 			}
 
 			if (fetchState["doomed"]) return;
@@ -540,9 +643,9 @@ function fetchBlockListBackend(fetchState) {
 
 				setBlockList(fetchState["new_list"], Date.now(), true);
 
-
-				fetchState["new_list"] = [];
-				fetchState["next_cursor_str"] = "-1";
+				if (backgroundState["block_list_fetch_state"] == fetchState) {
+					backgroundState["block_list_fetch_state"] = null;
+				}
 			}
 		}
 	);
@@ -559,26 +662,47 @@ function fetchBlockList() {
 	var fetchState = {};
 	fetchState["new_list"] = [];
 	fetchState["next_cursor_str"] = "-1";
-	fetchState["timeout_id"] = null;
 	fetchState["doomed"] = false;
 
-	backgroundState["black_list_fetch_state"] = fetchState;
+	backgroundState["block_list_fetch_state"] = fetchState;
 
 	fetchBlockListBackend(fetchState);
-}
-
-function isFetchingBlockList() {
-	return (backgroundState["black_list_fetch_state"] != null);
 }
 
 /**
  * Signals the current block list fetching operation, if any, to self-terminate.
  */
 function abortFetchingBlockList() {
-	if (backgroundState["black_list_fetch_state"] != null) {
+	if (backgroundState["block_list_fetch_state"] != null) {
 		backgroundLog("Aborting an existing block list fetch operation");
-		backgroundState["black_list_fetch_state"]["doomed"] = true;
-		backgroundState["black_list_fetch_state"] = null;
+
+		backgroundState["block_list_fetch_state"]["doomed"] = true;
+		backgroundState["block_list_fetch_state"] = null;
+	}
+	chrome.alarms.clear(ALARM_FETCH_BLOCK_LIST);
+	chrome.storage.local.remove(["block_list_fetch_state"]);
+}
+
+/**
+ * Fetches a new block list if the interval has expired (and not already doing so).
+ */
+function fetchBlockListIfExpired() {
+	if (backgroundState["block_list_fetch_interval"] == 0) return;
+	if (!twitterState["authorized"]) return;
+	if (backgroundState["block_list_fetch_state"] != null) return;
+
+	var nowStamp = Date.now();
+	var listStamp = backgroundState["block_list_timestamp"];
+	var fetchInterval = backgroundState["block_list_fetch_interval"];
+	var daysOld = (nowStamp - listStamp) / 1000 / 60 / 60 / 24;
+
+	if (daysOld > fetchInterval) {
+		// Note: toFixed(N) formats a float into a string with N decimal places (+ will concatenate!).
+
+		backgroundLog("Re-fetching expired block list (Age: "+ daysOld.toFixed(1) +" days, Interval: "+ fetchInterval +")");
+		announceStatus("Re-fetching block list", "notice", true);
+
+		fetchBlockList();
 	}
 }
 
@@ -598,6 +722,29 @@ function setRedacting(b, store) {
 	if (store) {
 		chrome.storage.local.set(
 			{"redacting":backgroundState["redacting"]},
+			function() {
+				if (chrome.runtime.lasterror) {
+					backgroundLog(chrome.runtime.lastError.message);
+				}
+			}
+		);
+	}
+}
+
+/**
+ * Sets the age at which the block list needs updating and notifies other scripts.
+ *
+ * @param {Number} days - A positive integer, or 0 to disable.
+ * @param {Boolean} store - True to set localstorage, false otherwise.
+ */
+function setBlockListFetchInterval(days, store) {
+	backgroundState["block_list_fetch_interval"] = days;
+
+	broadcastMessage("options", {"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
+
+	if (store) {
+		chrome.storage.local.set(
+			{"block_list_fetch_interval":backgroundState["block_list_fetch_interval"]},
 			function() {
 				if (chrome.runtime.lasterror) {
 					backgroundLog(chrome.runtime.lastError.message);
@@ -632,7 +779,7 @@ function setBlockList(new_list, timestamp, store) {
 
 	broadcastMessage("content", {"type":"reset_evilness"});
 
-	announceStatus(getBlockListStatusString(), "notice");
+	announceStatus(getBlockListStatusString(), "notice", true);
 
 	if (store) {
 		chrome.storage.local.set(
@@ -669,8 +816,11 @@ codebird.setConsumerKey(consumerKey, consumerSecret);
 var backgroundState = {};
 backgroundState["redacting"] = false;
 backgroundState["redact_all"] = false;
+backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();
 backgroundState["block_list"] = [];
+backgroundState["block_list_fetch_state"] = null;
+backgroundState["last_status"] = {"text":"", "severity":"notice"};
 backgroundState["ports"] = {"all":[], "content":[], "popup":[], "options":[], "unknown":[]};
 
 var twitterState = {}
@@ -680,4 +830,3 @@ twitterState["rate"] = {};           // Dict of methodName:{limit, remaining, re
 
 
 backgroundInit();
-twitterInit();
