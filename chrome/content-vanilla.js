@@ -161,7 +161,11 @@ function dredgeInterestingItems(node) {
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
-	contentState["stream_div"] = document.querySelector("div.search-stream,div.profile-stream,div.home-stream");
+	// div class can be .search-stream,.profile-stream,.home-stream,.permalink-stream
+	// Two permalink-stream divs wrap replies in a thread, before/after the selected detailed tweet.
+	// Its child, ol#stream-items-id is NOT unique on permalink (thread) pages!
+
+	contentState["streams"] = document.querySelectorAll("ol.js-navigable-stream");
 	unregisterAllItems();
 }
 
@@ -187,7 +191,7 @@ function contentInit() {
 	setStylesheet("vanilla-faded.css");
 
 	initStateVars();
-	if (contentState["stream_div"] != null) {
+	if (contentState["streams"].length > 0) {
 		logInfo("Twitter page with a stream loaded");
 
 		backgroundPort.postMessage({type:"init_content"});
@@ -201,7 +205,7 @@ function contentInit() {
 		});
 
 		if (pageChanged) {
-			if (contentState["stream_div"] != null) {
+			if (contentState["streams"].length > 0) {
 				// When revisiting previous pages, undo past meddling and init from scratch.
 				// It seems the DOM is cloned, since testing against remembered nodes fails.
 				// Spawned buttons persist but can't be reused: they lose their event listeners!?
@@ -210,7 +214,7 @@ function contentInit() {
 				setRedacting(false);
 			}
 			initStateVars();
-			if (contentState["stream_div"] != null) {
+			if (contentState["streams"].length > 0) {
 				logInfo("Twitter page content changed, now has a stream");
 
 				backgroundPort.postMessage({type:"init_content"});
@@ -456,13 +460,15 @@ function setAllItemsRedacted(b) {
 function registerAllItems() {
 	logDebug("Registering all stream-items");  // TODO: Remove me.
 
-	var itemsNode = contentState["stream_div"].querySelector("ol#stream-items-id");
-	var dredgedItems = dredgeInterestingItems(itemsNode);
+	for (var i=0; i < contentState["streams"].length; i++) {
+		var itemsNode = contentState["streams"][i];
+		var dredgedItems = dredgeInterestingItems(itemsNode);
 
-	for (var i=0; i < dredgedItems.length; i++) {
-		var dredgedItem = dredgedItems[i];
+		for (var j=0; j < dredgedItems.length; j++) {
+			var dredgedItem = dredgedItems[j];
 
-		registerItem(dredgedItem.node, dredgedItem.type);
+			registerItem(dredgedItem.node, dredgedItem.type);
+		}
 	}
 }
 
@@ -487,10 +493,12 @@ function setRedacting(b) {
 	contentState["redacting"] = b;
 
 	if (b) {
-		var resultsList = contentState["stream_div"].querySelector("ol#stream-items-id");
+		for (var i=0; i < contentState["streams"].length; i++) {
+			var itemsNode = contentState["streams"][i];
 
-		var observerCfg = { childList: true, attributes: false, characterData: false, subtree: true }
-		contentState["stream_observer"].observe(resultsList, observerCfg);
+			var observerCfg = { childList: true, attributes: false, characterData: false, subtree: true }
+			contentState["stream_observer"].observe(itemsNode, observerCfg);
+		}
 	}
 	else {
 		contentState["stream_observer"].disconnect();
@@ -517,7 +525,7 @@ var contentState = {};
 contentState["redacting"] = false;
 contentState["block_list"] = null;
 contentState["stream_observer"] = new MutationObserver(streamMutationCallback);
-contentState["stream_div"] = null;
+contentState["streams"] = [];
 contentState["items"] = [];   // List of {node:element, type:string, userIds:string[]}
 contentState["users"] = {};   // Dict of string ids to {count:number, evil:bool|null}
 
@@ -527,7 +535,7 @@ var backgroundPort = chrome.runtime.connect({"name":"content"});
 
 backgroundPort.onMessage.addListener(
 	function(message, sender, sendResponse) {
-		if (contentState["stream_div"] == null) return;  // No stream, ignore all messages.
+		if (contentState["streams"].length == 0) return;  // No stream, ignore all messages.
 
 		if (message.type == "reset_evilness") {
 			logDebug("Message received: "+ message.type);
