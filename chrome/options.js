@@ -107,7 +107,7 @@ var optionsState = {};
 optionsState["redacting_vanilla_box"] = null;
 optionsState["redacting_tweetdeck_box"] = null;
 optionsState["request_pin_btn"] = null;
-optionsState["input_pin_field"] = null;
+optionsState["pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
 optionsState["twitter_actions_fieldset"] = null;
 optionsState["test_credentials_btn"] = null;
@@ -164,7 +164,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	optionsState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
 	optionsState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
-	optionsState["input_pin_field"] = document.getElementById("input-pin-field");
+	optionsState["pin_field"] = document.getElementById("pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
 	optionsState["twitter_actions_fieldset"] = document.getElementById("twitter-actions-fieldset");
 	optionsState["test_credentials_btn"] = document.getElementById("test-credentials-btn");
@@ -184,7 +184,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	});
 
 	optionsState["submit_pin_btn"].addEventListener("click", function() {
-		var pin = optionsState["input_pin_field"].value;
+		var pin = optionsState["pin_field"].value;
 		if (pin) {
 			backgroundPort.postMessage({type:"submit_twitter_pin", "value":pin});
 		} else {
