@@ -13,6 +13,10 @@ div.rne-vanilla-tweet-redacted  > div.content > p.tweet-text {
 div.rne-vanilla-tweet-redacted  > div.content > div.AdaptiveMedia {
   display: none;
 }
+/* External link previews. */
+div.rne-vanilla-tweet-redacted  > div.content > div.js-media-container {
+  display: none;
+}
 /* Quoted tweet text. */
 div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content div.QuoteTweet-text {
   opacity: 0.15;
