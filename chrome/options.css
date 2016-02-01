@@ -1,10 +1,36 @@
+fieldset {
+  margin-top: 0.4em;
+  margin-bottom: 0.4em;
+}
+
+.flex-row-container {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between
+}
+
+.label-and-input {
+  white-space: nowrap;
+}
+
 form#options-form input {
-  margin-top:5px;
-  margin-bottom:5px;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 fieldset#status-fieldset span.label-text {
   display: inline-block;
   width: 18ch;
   margin-right: 5px;
+}
+
+p.hint {
+  text-indent: 4ch;
+  text-align: left
+}
+
+/* hr#hints-separator and p.hint */
+.invisible {
+  display: none;
 }

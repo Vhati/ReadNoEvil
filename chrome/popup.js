@@ -59,5 +59,10 @@ document.addEventListener("DOMContentLoaded", function() {
 		backgroundPort.postMessage({"type":"set_redact_all", "value":Boolean(popupState["redact_all_box"].checked)});
 	});
 
+	document.getElementById("options-link").addEventListener("click", function() {
+		backgroundPort.postMessage({"type":"open_options_page"});
+		return false;
+	});
+
 	backgroundPort.postMessage({type:"init_popup"});
 });

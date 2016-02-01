@@ -84,6 +84,23 @@ function setTimedField(name, value) {
 
 
 
+function setHintVisible(id, b) {
+	var methodName;
+
+	var hintPara = document.getElementById(id);
+
+	methodName = (!b ? "add" : "remove");
+	hintPara.classList[methodName]("invisible");
+
+	var hintSeparator = document.getElementById("hints-separator");
+	var visibleHints = document.querySelectorAll("#hints-separator ~ .hint:not(.invisible)");
+
+	methodName = (visibleHints.length == 0 ? "add" : "remove");
+	hintSeparator.classList[methodName]("invisible");
+}
+
+
+
 var timedFieldsState = {};  // Dict of name:{node, timer_id, last_value, callback}
 
 var optionsState = {};
@@ -115,14 +132,19 @@ backgroundPort.onMessage.addListener(
 			setTimedField("fetch_interval_field", message.value);
 		}
 		else if (message.type == "set_twitter_ready") {
-			optionsState["twitter_actions_fieldset"].disabled = !Boolean(message.value);
+			var b = Boolean(message.value);
+			optionsState["twitter_actions_fieldset"].disabled = !b;
 
 			var span = document.getElementById("twitter-ready-text");
-			span.textContent = ""+Boolean(message.value);
+			span.textContent = ""+b;
+
+			setHintVisible("twitter-setup-hint", !b);
 		}
 		else if (message.type == "set_block_list_description") {
 			var span = document.getElementById("block-list-text");
 			span.textContent = (message.value != null ? message.value : "");
+
+			setHintVisible("block-list-fetch-hint", (message.count == 0));
 		}
 		else if (message.type == "set_status_text") {
 			var status = message.value;

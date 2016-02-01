@@ -4,57 +4,61 @@
     <link rel="stylesheet" type="text/css" href="options.css">
   </head>
   <body>
-    <div>
+
+<div style="margin:auto; width:-webkit-min-content; width:min-content">
+
+    <div style="">
       <form id="options-form" action="" method="">
         <fieldset>
           <legend>General</legend>
-          <span style="white-space:nowrap">
+          <span class="label-and-input" style="margin-right:25px">
             <label><input type="checkbox" id="redacting-vanilla-box" name="redacting-vanilla-box" /> Monitor Twitter.com</label>
           </span>
-          &nbsp;&nbsp;&nbsp;&nbsp;
-          <span style="white-space:nowrap">
+
+          <span class="label-and-input">
             <label><input type="checkbox" id="redacting-tweetdeck-box" name="redacting-tweetdeck-box" /> Monitor Tweetdeck</label>
           </span>
         </fieldset>
 
-        <p style="white-space:normal; text-align:center">Before this extension can communicate with Twitter, you'll need to grant it access to your account. This only needs to be done once.</p>
-
-        <div style="display:flex; flex-direction:row; align-items:stretch">
-          <fieldset style="flex:1">
+        <div class="flex-row-container">
+          <fieldset style="flex:0">
             <legend>Twitter Setup</legend>
             <input type="button" id="request-pin-btn" value="Request PIN Authorization" />
             <br />
-            <span style="white-space:nowrap">
+            <span class="label-and-input">
               <label>PIN: <input type="text" id="pin-field" size="8" /></label>
               <input type="button" id="submit-pin-btn" value="OK" />
             </span>
           </fieldset>
-          <fieldset style="flex:1" id="twitter-actions-fieldset" disabled="true">
+          <fieldset style="flex:0" id="twitter-actions-fieldset" disabled="true">
             <legend>Twitter Actions</legend>
             <input type="button" id="test-credentials-btn" value="Test Credentials" />
             <br />
             <input type="button" id="fetch-block-list-btn" value="Fetch Current Block List" />
             <br />
-            <span style="white-space:nowrap">
+            <span class="label-and-input">
               <label>Re-fetch every N days: <input style="width:8ch" type="number" id="fetch-interval-field" min="0" step="1" /></label>
             </span>
           </fieldset>
         </div>
-        <br />
 
         <fieldset id="status-fieldset">
           <legend>Status</legend>
           <p style="margin:3px"><span class="label-text">Twitter Authorized:</span><span id="twitter-ready-text"></span></p>
           <p style="margin:3px"><span class="label-text">Block List:</span><span id="block-list-text"></span></p>
+          <hr id="hints-separator" />
+          <p class="hint" id="twitter-setup-hint">Before this extension can communicate with Twitter, you'll need to grant it access to your account. This only needs to be done once.</p>
+          <p class="hint" id="block-list-fetch-hint">Next, start fetching a copy of your block list. Lists of 75,000+ entries will take several minutes. When it arrives, bad tweets will be hidden.</p>
         </fieldset>
-        <br />
+
+        <div style="margin:1em 0 0 0; padding:0; width:100%; background:#e3e3e3; border:solid 2px #888">
+          <div style="margin:0; padding:3px; text-align:center;" id="status-div">Hello</div>
+        </div>
 
       </form>
     </div>
 
-    <div style="background:#e3e3e3; border:solid 2px #888; bottom:0; left:0; margin:0; padding:0; width:100%">
-      <div style="margin:0; padding:3px; text-align:center;" id="status-div">Hello</div>
-    </div>
+</div>
 
     <script src="options.js"></script>
   </body>

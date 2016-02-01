@@ -60,6 +60,34 @@ function logError(message) {
 
 
 
+/**
+ * Opens, or switches to, the options page.
+ *
+ * Chrome 42+ introduced a function to do this.
+ * Earlier versions need to open a new tab.
+ */
+function openOptionsPage() {
+	var m = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
+	if (m && parseInt(m[2], 10) >= 42) {
+		chrome.runtime.openOptionsPage();
+	}
+	else {
+		var optionsUrl = chrome.extension.getURL("options.html");
+
+		chrome.tabs.query({"url":optionsUrl},
+			function(tabs) {
+				if (tabs.length > 0) {
+					chrome.tabs.update(tabs[0].id, {"active":true});
+				} else {
+					chrome.tabs.create({"url":optionsUrl});
+				}
+			}
+		);
+	}
+}
+
+
+
 function backgroundInit() {
 	chrome.storage.local.get(
 		[
@@ -138,6 +166,14 @@ function backgroundInit() {
  *
  * This isn't actually a function, but I'll comment anyway, as if were valid for JSDoc.
  *
+ * set_redacting_vanilla:
+ *   Toggles redaction on Twitter.com.
+ *   param {Boolean} value
+ *
+ * set_redacting_tweetdeck:
+ *   Toggles redaction on Tweetdeck.
+ *   param {Boolean} value
+ *
  * show_page_action:
  *   Displays this extension's clickable icon, in the address bar.
  *
@@ -145,11 +181,31 @@ function backgroundInit() {
  *   param {string[]} message.userIds - A list of users to check against the block_list.
  *   returns {Object.<string, Boolean>} - A dict of key:value pairs. True if on the list.
  *
- * get_storage:
- *   param {string[]} message.keys - A list of localstorage keys to look up.
- *   returns {Object.<string, Object>} - A dict of key:value pairs.
+ * verify_twitter_credentials:
+ *   Asks Twitter is the oauth credentials are valid. Status text will be set describing the result.
  *
- * Options pages have no tabId and do not support sendResponse. :/
+ * request_twitter_pin:
+ *   Opens a PIN auth tab.
+ *
+ * submit_twitter_pin:
+ *   Submits a previously requested PIN to complete authorization.
+ *   param {string} value - The number seen.
+ *
+ * fetch_block_list:
+ *   Fetches a fresh copy of the block list.
+ *
+ * set_block_list_fetch_interval:
+ *   Sets how often the block list should be re-fetched.
+ *   param {string} value - The new number of days, or "".
+ *
+ * set_redact_all:
+ *   Toggles redacting ALL users.
+ *   param {Boolean} value
+ *
+ * open_options_page:
+ *   Opens the options page.
+ *
+ * Options pages may have no tabId and do not support sendResponse. :/
  * They CAN, however, request info by directly calling background functions.
  * "var result = chrome.extension.getBackgroundPage().f();"
  *
@@ -222,7 +278,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
-				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription()});
+				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
 				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
 			}
 			else if (message.type == "verify_twitter_credentials") {
@@ -275,6 +331,10 @@ chrome.runtime.onConnect.addListener(function(port) {
 				broadcastMessage("popup", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
 				broadcastMessage("content", {"type":"reset_evilness"});
 			}
+			else if (message.type == "open_options_page") {
+				logDebug("Message received: "+ message.type);
+				openOptionsPage();
+			}
 		}
 	);
 
@@ -318,6 +378,15 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 	}
 });
 */
+
+
+
+chrome.runtime.onInstalled.addListener(function(details) {
+	if (details.reason == "install") {
+		// First run: Open the options page.
+		openOptionsPage();
+	}
+});
 
 
 
@@ -848,7 +917,7 @@ function setBlockList(new_list, timestamp, store) {
 	backgroundState["block_list"] = new_list;
 
 	broadcastMessage("content", {"type":"reset_evilness"});
-	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription()});
+	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
 
 	if (store) {
 		chrome.storage.local.set(
