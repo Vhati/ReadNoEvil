@@ -288,7 +288,7 @@ function contentInit() {
 			}
 		}
 	});
-	var appCfg = {childList: true, attributes: false, characterData: false, subtree: false};
+	var appCfg = {childList:true, attributes:false, characterData:false, subtree:false};
 	contentState["app_observer"].observe(appDiv, appCfg);
 }
 
@@ -321,7 +321,7 @@ function registerColumn(columnNode) {
 		contentState["columns"].push(columnInfo);
 
 		if (contentState["redacting"]) {
-			var columnCfg = {childList: true, attributes: false, characterData: false, subtree: true};
+			var columnCfg = {childList:true, attributes:false, characterData:false, subtree:true};
 			columnObserver.observe(columnNode, columnCfg);
 		}
 	}
@@ -677,13 +677,13 @@ function setRedacting(b) {
 	if (b) {
 		var appColsDiv = contentState["cols_div"].querySelector(":scope > div.app-columns");
 
-		var colsCfg = {childList: true, attributes: false, characterData: false, subtree: false};
+		var colsCfg = {childList:true, attributes:false, characterData:false, subtree:false};
 		contentState["cols_observer"].observe(appColsDiv, colsCfg);
 
 		for (var i=0; i < contentState["columns"].length; i++) {
 			var columnInfo = contentState["columns"][i];
 
-			var columnCfg = {childList: true, attributes: false, characterData: false, subtree: false};
+			var columnCfg = {childList:true, attributes:false, characterData:false, subtree:false};
 			columnInfo.observer.observe(columnInfo.node, columnCfg);
 		}
 	}
