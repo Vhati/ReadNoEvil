@@ -242,7 +242,7 @@ function contentInit() {
 		return;
 	}
 
-	setStylesheet("tweetdeck-faded.css");
+	setStylesheet("tweetdeck-blank.css");
 
 	initStateVars();
 	if (contentState["cols_div"] != null) {

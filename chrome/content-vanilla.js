@@ -188,7 +188,7 @@ function contentInit() {
 		return;
 	}
 
-	setStylesheet("vanilla-faded.css");
+	setStylesheet("vanilla-blank.css");
 
 	initStateVars();
 	if (contentState["streams"].length > 0) {

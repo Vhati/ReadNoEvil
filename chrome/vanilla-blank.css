@@ -1,0 +1,39 @@
+/* This would hide all but the author+date header of tweets. */
+/*
+div.rne-vanilla-tweet-redacted  > div.content > *:not(.stream-item-header) {
+  opacity: 0.15;
+}
+*/
+
+
+/* Regular Tweet */
+
+div.rne-vanilla-tweet-redacted  > div.content  > div.stream-item-header > .time > a.js-permalink:after {
+  display: inline-block;
+  margin-left: 5px;
+  content: "";
+  width: 1em;
+  height: 1em;
+  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background-size: 1em;
+}
+/* Tweet text. */
+div.rne-vanilla-tweet-redacted  > div.content > p.tweet-text {
+  visibility: hidden;
+}
+/* Tweet image(s)/video. */
+div.rne-vanilla-tweet-redacted  > div.content > div.AdaptiveMedia {
+  display: none;
+}
+/* External link previews. */
+div.rne-vanilla-tweet-redacted  > div.content > div.js-media-container {
+  display: none;
+}
+/* Quoted tweet text. */
+div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content div.QuoteTweet-text {
+  visibility: hidden;
+}
+/* Quoted tweet thumbnail image. */
+div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content > div.QuoteMedia {
+  display: none;
+}

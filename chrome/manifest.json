@@ -41,6 +41,8 @@
     }
   },
   "web_accessible_resources": [
+    "tweetdeck-blank.css",
+    "vanilla-blank.css",
     "tweetdeck-faded.css",
     "vanilla-faded.css",
     "icon19.png"
