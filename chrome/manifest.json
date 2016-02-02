@@ -42,7 +42,8 @@
   },
   "web_accessible_resources": [
     "tweetdeck-faded.css",
-    "vanilla-faded.css"
+    "vanilla-faded.css",
+    "icon19.png"
   ],
   "permissions": [
     "activeTab",

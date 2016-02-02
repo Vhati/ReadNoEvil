@@ -5,6 +5,18 @@ article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body 
 }
 */
 
+
+/* Regular Tweet */
+
+article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > header.tweet-header > time.tweet-timestamp > a:last-child:after {
+  display: inline-block;
+  margin-left: 5px;
+  content: "";
+  width: 1em;
+  height: 1em;
+  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background-size: 1em;
+}
 /* Tweet text. */
 article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body > p.tweet-text {
   opacity: 0.15;
@@ -22,6 +34,17 @@ article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body 
   display: none;
 }
 
+
+/* Account activity */
+
+article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summary > div.obj-right:after {
+  display: inline-block;
+  content: "";
+  width: 1em;
+  height: 1em;
+  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background-size: 1em;
+}
 /* Account activity bio text. */
 article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summary > div.account-summary-text p.account-bio {
   opacity: 0.15;

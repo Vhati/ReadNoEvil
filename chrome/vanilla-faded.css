@@ -5,6 +5,18 @@ div.rne-vanilla-tweet-redacted  > div.content > *:not(.stream-item-header) {
 }
 */
 
+
+/* Regular Tweet */
+
+div.rne-vanilla-tweet-redacted  > div.content  > div.stream-item-header > .time > a.js-permalink:after {
+  display: inline-block;
+  margin-left: 5px;
+  content: "";
+  width: 1em;
+  height: 1em;
+  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background-size: 1em;
+}
 /* Tweet text. */
 div.rne-vanilla-tweet-redacted  > div.content > p.tweet-text {
   opacity: 0.15;
