@@ -550,6 +550,13 @@ backgroundPort.onDisconnect.addListener(function() {
 	RNE.logging.warning("Connection lost to background script! The page needs reloading.");
 
 	panic();
+
+	RNE.dialog.showMessageBox("ReadNoEvil - Error", "max-content",
+		[
+			"ReadNoEvil stopped running while it had a script injected here.",
+			"Until this page is reloaded, it may be unstable."
+		]
+	);
 });
 
 
