@@ -56,7 +56,7 @@ RNE.logging = RNE.logging || (function() {
 				if (level == levels["ERROR"]) {
 					con.error(message);
 				}
-				else if (level == levels["WARN"]) {
+				else if (level == levels["WARNING"]) {
 					con.warn(message);
 				}
 				else {
