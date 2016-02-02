@@ -3,6 +3,13 @@ fieldset {
   margin-bottom: 0.4em;
 }
 
+.flex-centered-row-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-around;
+}
+
 .flex-edgy-row-container {
   display: flex;
   flex-direction: row;
@@ -17,6 +24,13 @@ fieldset {
 form#options-form input {
   margin-top: 5px;
   margin-bottom: 5px;
+}
+
+form#options-form select {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  margin-left: 2px;
+  margin-right: 2px;
 }
 
 fieldset#status-fieldset span.label-text {

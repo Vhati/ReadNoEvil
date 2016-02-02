@@ -93,6 +93,7 @@ function backgroundInit() {
 		[
 			"oauth_key", "oauth_secret",
 			"redacting_vanilla", "redacting_tweetdeck",
+			"redaction_style",
 			"block_list_fetch_interval",
 			"block_list_timestamp", "block_list",
 			"block_list_fetch_state"
@@ -109,6 +110,7 @@ function backgroundInit() {
 			// Default redactiing to true if not set.
 			var newRedactingVanilla = (data.redacting_vanilla != null ? data.redacting_vanilla : true);
 			var newRedactingTweetdeck = (data.redacting_tweetdeck != null ? data.redacting_tweetdeck : true);
+			var newRedactionStyle = (["blank", "faded"].indexOf(data.redaction_style) != -1 ? data.redaction_style : "blank" );
 
 			if (data.block_list) {
 				newBlockList = data.block_list;
@@ -130,6 +132,7 @@ function backgroundInit() {
 
 			setRedactingVanilla(newRedactingVanilla, false);
 			setRedactingTweetdeck(newRedactingTweetdeck, false);
+			setRedactionStyle(newRedactionStyle, false);
 			setBlockListFetchInterval(newFetchInterval, false);
 			setBlockList(newBlockList, newBlockListStamp, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
@@ -180,6 +183,10 @@ function backgroundInit() {
  * test_evilness:
  *   param {string[]} message.userIds - A list of users to check against the block_list.
  *   returns {Object.<string, Boolean>} - A dict of key:value pairs. True if on the list.
+ *
+ * set_redaction_style:
+ *   Sets which stylesheet to use for redacted elements.
+ *   param {string} value - One of: blank, faded.
  *
  * verify_twitter_credentials:
  *   Asks Twitter is the oauth credentials are valid. Status text will be set describing the result.
@@ -256,6 +263,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
+				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 			}
 			else if (message.type == "test_evilness") {
 				//logDebug("Testing evilness: "+ message.userIds.join());
@@ -276,10 +284,18 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
+				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
 				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
+			}
+			else if (message.type == "set_redaction_style") {
+				logDebug("Message received: "+ message.type +", "+ message.value);
+
+				if (message.value != backgroundState["redaction_style"]) {
+					setRedactionStyle(message.value, true);
+				}
 			}
 			else if (message.type == "verify_twitter_credentials") {
 				verifyCredentials(function(reply, err) {
@@ -871,6 +887,31 @@ function setRedactingTweetdeck(b, store) {
 }
 
 /**
+ * Toggles the redaction style and notifies other scripts.
+ *
+ * @param {Boolean} value - One of: blank, faded.
+ * @param {Boolean} store - True to set localstorage, false otherwise.
+ */
+function setRedactionStyle(value, store) {
+	if (["blank", "faded"].indexOf(value) == -1) return;
+
+	backgroundState["redaction_style"] = value;
+
+	broadcastMessage("all", {"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
+
+	if (store) {
+		chrome.storage.local.set(
+			{"redaction_style":backgroundState["redaction_style"]},
+			function() {
+				if (chrome.runtime.lasterror) {
+					logWarn(chrome.runtime.lastError.message);
+				}
+			}
+		);
+	}
+}
+
+/**
  * Sets the age at which the block list needs updating and notifies other scripts.
  *
  * @param {Number} days - A positive integer, or 0 to disable.
@@ -954,6 +995,7 @@ codebird.setConsumerKey(consumerKey, consumerSecret);
 var backgroundState = {};
 backgroundState["redacting_vanilla"] = false;
 backgroundState["redacting_tweetdeck"] = false;
+backgroundState["redaction_style"] = "blank";
 backgroundState["redact_all"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();

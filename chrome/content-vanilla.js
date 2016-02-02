@@ -571,6 +571,13 @@ backgroundPort.onMessage.addListener(
 				unregisterAllItems();
 			}
 		}
+		else if (message.type == "set_redaction_style") {
+			logDebug("Message received: "+ message.type +", "+ message.value);
+			var name = message.value;
+			var cssFiles = {"blank":"vanilla-blank.css", "faded":"vanilla-faded.css"};
+			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
+			setStylesheet(cssFile);
+		}
 	}
 );
 

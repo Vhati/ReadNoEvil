@@ -751,6 +751,13 @@ backgroundPort.onMessage.addListener(
 				unregisterAllColumns();
 			}
 		}
+		else if (message.type == "set_redaction_style") {
+			logDebug("Message received: "+ message.type +", "+ message.value);
+			var name = message.value;
+			var cssFiles = {"blank":"tweetdeck-blank.css", "faded":"tweetdeck-faded.css"};
+			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
+			setStylesheet(cssFile);
+		}
 	}
 );
 

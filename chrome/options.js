@@ -14,6 +14,15 @@ function logDebug(message) {
 	chrome.extension.getBackgroundPage().logDebug(message);
 }
 
+/**
+ * Logs a warning message, via the background page.
+ *
+ * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
+ */
+function logWarn(message) {
+	chrome.extension.getBackgroundPage().logWarn(message);
+}
+
 
 
 function setStatusText(s) {
@@ -106,6 +115,7 @@ var timedFieldsState = {};  // Dict of name:{node, timer_id, last_value, callbac
 var optionsState = {};
 optionsState["redacting_vanilla_box"] = null;
 optionsState["redacting_tweetdeck_box"] = null;
+optionsState["redaction_style_combo"] = null;
 optionsState["request_pin_btn"] = null;
 optionsState["pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
@@ -127,6 +137,15 @@ backgroundPort.onMessage.addListener(
 		else if (message.type == "set_redacting_tweetdeck") {
 			var b = Boolean(message.value);
 			optionsState["redacting_tweetdeck_box"].checked = b;
+		}
+		else if (message.type == "set_redaction_style") {
+			var name = message.value;
+			var namedOption = optionsState["redaction_style_combo"].options.namedItem(name);
+			if (namedOption) {
+				namedOption.selected = true;
+			} else {
+				logWarn("Options page has no option for redaction style: "+ message.value);
+			}
 		}
 		else if (message.type == "set_block_list_fetch_interval") {
 			setTimedField("fetch_interval_field", message.value);
@@ -163,6 +182,7 @@ backgroundPort.onMessage.addListener(
 document.addEventListener("DOMContentLoaded", function() {
 	optionsState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
 	optionsState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
+	optionsState["redaction_style_combo"] = document.getElementById("redaction-style-combo");
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
 	optionsState["pin_field"] = document.getElementById("pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
@@ -177,6 +197,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	optionsState["redacting_tweetdeck_box"].addEventListener("change", function() {
 		backgroundPort.postMessage({"type":"set_redacting_tweetdeck", "value":Boolean(optionsState["redacting_tweetdeck_box"].checked)});
+	});
+
+	optionsState["redaction_style_combo"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redaction_style", "value":optionsState["redaction_style_combo"].value});
 	});
 
 	optionsState["request_pin_btn"].addEventListener("click", function() {
