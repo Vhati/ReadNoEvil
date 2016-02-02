@@ -158,6 +158,20 @@ function dredgeInterestingItems(node) {
 
 
 /**
+ * Tries to get this script into an inert state, in case of emergency.
+ */
+function panic() {
+	setRedacting(false);
+	setAllItemsRedacted(false);
+	unregisterAllItems();
+	contentState["streams"] = [];
+
+	if (contentState["nav_observer"]) {
+		contentState["nav_observer"].disconnect();
+	}
+}
+
+/**
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
@@ -197,7 +211,7 @@ function contentInit() {
 		backgroundPort.postMessage({type:"init_content"});
 	}
 
-	var navObserver = new MutationObserver(function(mutations) {
+	contentState["nav_observer"] = new MutationObserver(function(mutations) {
 		var pageChanged = false;
 
 		mutations.forEach(function(mutation) {
@@ -224,8 +238,8 @@ function contentInit() {
 			}
 		}
 	});
-	var navCfg = {childList: true, attributes: false, characterData: false, subtree: false};
-	navObserver.observe(navDiv, navCfg);
+	var navCfg = {childList:true, attributes:false, characterData:false, subtree:false};
+	contentState["nav_observer"].observe(navDiv, navCfg);
 }
 
 
@@ -496,7 +510,7 @@ function setRedacting(b) {
 		for (var i=0; i < contentState["streams"].length; i++) {
 			var itemsNode = contentState["streams"][i];
 
-			var observerCfg = { childList: true, attributes: false, characterData: false, subtree: true }
+			var observerCfg = {childList:true, attributes:false, characterData:false, subtree:true};
 			contentState["stream_observer"].observe(itemsNode, observerCfg);
 		}
 	}
@@ -524,6 +538,7 @@ function setStylesheet(cssFile) {
 var contentState = {};
 contentState["redacting"] = false;
 contentState["block_list"] = null;
+contentState["nav_observer"] = null;
 contentState["stream_observer"] = new MutationObserver(streamMutationCallback);
 contentState["streams"] = [];
 contentState["items"] = [];   // List of {node:element, type:string, userIds:string[]}
@@ -580,6 +595,13 @@ backgroundPort.onMessage.addListener(
 		}
 	}
 );
+
+// Content scripts are left running when the extension is reloaded/updated.
+backgroundPort.onDisconnect.addListener(function() {
+	logWarn("Connection lost to background script! The page needs reloading.");
+
+	panic();
+});
 
 
 

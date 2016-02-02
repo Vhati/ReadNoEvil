@@ -205,6 +205,20 @@ function dredgeInterestingItems(node) {
 
 
 /**
+ * Tries to get this script into an inert state, in case of emergency.
+ */
+function panic() {
+	setRedacting(false);
+	setAllItemsRedacted(false);
+	unregisterAllColumns();
+	contentState["cols_div"] = null;
+
+	if (contentState["app_observer"]) {
+		contentState["app_observer"].disconnect();
+	}
+}
+
+/**
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
@@ -251,7 +265,7 @@ function contentInit() {
 		backgroundPort.postMessage({type:"init_content"});
 	}
 
-	var appObserver = new MutationObserver(function(mutations) {
+	contentState["app_observer"] = new MutationObserver(function(mutations) {
 		var pageChanged = false;
 
 		mutations.forEach(function(mutation) {
@@ -275,7 +289,7 @@ function contentInit() {
 		}
 	});
 	var appCfg = {childList: true, attributes: false, characterData: false, subtree: false};
-	appObserver.observe(appDiv, appCfg);
+	contentState["app_observer"].observe(appDiv, appCfg);
 }
 
 
@@ -703,6 +717,7 @@ function setStylesheet(cssFile) {
 var contentState = {};
 contentState["redacting"] = false;
 contentState["block_list"] = null;
+contentState["app_observer"] = null;
 contentState["cols_observer"] = new MutationObserver(columnsMutationCallback);
 contentState["cols_div"] = null;
 contentState["columns"] = [];  // List of {node:element, observer:object}
@@ -760,6 +775,13 @@ backgroundPort.onMessage.addListener(
 		}
 	}
 );
+
+// Content scripts are left running when the extension is reloaded/updated.
+backgroundPort.onDisconnect.addListener(function() {
+	logWarn("Connection lost to background script! The page needs reloading.");
+
+	panic();
+});
 
 
 
