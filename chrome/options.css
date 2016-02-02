@@ -3,7 +3,7 @@ fieldset {
   margin-bottom: 0.4em;
 }
 
-.flex-row-container {
+.flex-edgy-row-container {
   display: flex;
   flex-direction: row;
   align-items: stretch;

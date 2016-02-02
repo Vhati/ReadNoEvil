@@ -11,16 +11,21 @@
       <form id="options-form" action="" method="">
         <fieldset>
           <legend>General</legend>
-          <span class="label-and-input" style="margin-right:25px">
-            <label><input type="checkbox" id="redacting-vanilla-box" name="redacting-vanilla-box" /> Monitor Twitter.com</label>
-          </span>
-
-          <span class="label-and-input">
-            <label><input type="checkbox" id="redacting-tweetdeck-box" name="redacting-tweetdeck-box" /> Monitor Tweetdeck</label>
-          </span>
+          <div class="flex-centered-row-container">
+            <div>
+              <span class="label-and-input">
+                <label><input type="checkbox" id="redacting-vanilla-box" name="redacting-vanilla-box" /> Monitor Twitter.com</label>
+              </span>
+            </div>
+            <div>
+              <span class="label-and-input">
+                <label><input type="checkbox" id="redacting-tweetdeck-box" name="redacting-tweetdeck-box" /> Monitor Tweetdeck</label>
+              </span>
+            </div>
+          </div>
         </fieldset>
 
-        <div class="flex-row-container">
+        <div class="flex-edgy-row-container">
           <fieldset style="flex:0">
             <legend>Twitter Setup</legend>
             <input type="button" id="request-pin-btn" value="Request PIN Authorization" />
