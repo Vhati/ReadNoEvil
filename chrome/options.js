@@ -3,25 +3,8 @@
 // Bug: When options page is embedded in chrome://extensions/ , it sometimes comes up blank at first.
 //   https://code.google.com/p/chromium/issues/detail?id=550217
 
-
-
-/**
- * Logs a debug message, via the background page.
- *
- * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
- */
-function logDebug(message) {
-	chrome.extension.getBackgroundPage().logDebug(message);
-}
-
-/**
- * Logs a warning message, via the background page.
- *
- * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
- */
-function logWarn(message) {
-	chrome.extension.getBackgroundPage().logWarn(message);
-}
+RNE.logging.setUseBackgroundConsole(true);
+RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
@@ -144,7 +127,7 @@ backgroundPort.onMessage.addListener(
 			if (namedOption) {
 				namedOption.selected = true;
 			} else {
-				logWarn("Options page has no option for redaction style: "+ message.value);
+				RNE.logging.warning("Options page has no option for redaction style: "+ message.value);
 			}
 		}
 		else if (message.type == "set_block_list_fetch_interval") {

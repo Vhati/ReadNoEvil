@@ -1,16 +1,7 @@
 // Both popup and background scripts share localstorage.
-// To get a console window, right-click the icon and "inspect popup".
 
-
-
-/**
- * Logs a debug message, via the background page.
- *
- * Messages will appear in the console of the background page (which is opened via "chrome://extensions/").
- */
-function logDebug(message) {
-	chrome.extension.getBackgroundPage().logDebug(message);
-}
+RNE.logging.setUseBackgroundConsole(true);
+RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 

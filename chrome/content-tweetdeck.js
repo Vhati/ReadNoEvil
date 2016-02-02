@@ -1,55 +1,4 @@
-var LogLevel = {
-	NONE: 0,
-	ERROR: 1,
-	WARN: 2,
-	INFO: 3,
-	NOTICE: 4,
-	DEBUG: 5,
-	TRACE: 6
-};
-
-var verbosity = LogLevel.DEBUG;
-
-
-
-/**
- * Logs a message.
- *
- * Edit the "verbosity" global var to toggle logging.
- *
- * Messages will appear in the active tab's console.
- *
- * @param {string} message
- */
-function log(message, level) {
-	if (verbosity >= level) {
-		if (level == LogLevel.ERROR) {
-			console.error(message);
-		}
-		else if (level == LogLevel.WARN) {
-			console.warn(message);
-		}
-		else {
-			console.log(message);
-		}
-	}
-}
-
-function logDebug(message) {
-	log(message, LogLevel.DEBUG);
-}
-
-function logInfo(message) {
-	log(message, LogLevel.NOTICE);
-}
-
-function logWarn(message) {
-	log(message, LogLevel.WARN);
-}
-
-function logError(message) {
-	log(message, LogLevel.ERROR);
-}
+RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
@@ -228,7 +177,7 @@ function initStateVars() {
 
 	var colsDiv = document.querySelector("div#container");
 	if (colsDiv == null) {
-		logDebug("No columns container yet");
+		RNE.logging.debug("No columns container yet");
 		return;
 	}
 	contentState["cols_div"] = colsDiv;
@@ -248,11 +197,11 @@ function initStateVars() {
  * clutter from past meddling will be removed.
  */
 function contentInit() {
-	logInfo("Tweetdeck content script started");
+	RNE.logging.info("Tweetdeck content script started");
 
 	var appDiv = document.querySelector("div.application");
 	if (appDiv == null) {
-		logInfo("No application div!? Aborting");
+		RNE.logging.info("No application div!? Aborting");
 		return;
 	}
 
@@ -260,7 +209,7 @@ function contentInit() {
 
 	initStateVars();
 	if (contentState["cols_div"] != null) {
-		logInfo("Tweetdeck page with columns loaded");
+		RNE.logging.info("Tweetdeck page with columns loaded");
 
 		backgroundPort.postMessage({type:"init_content"});
 	}
@@ -279,12 +228,12 @@ function contentInit() {
 			}
 			initStateVars();
 			if (contentState["cols_div"] != null) {
-				logInfo("Tweetdeck page content changed, now has columns");
+				RNE.logging.info("Tweetdeck page content changed, now has columns");
 
 				backgroundPort.postMessage({type:"init_content"});
 			}
 			else {
-				logInfo("Tweetdeck page content changed, no columns present");
+				RNE.logging.info("Tweetdeck page content changed, no columns present");
 			}
 		}
 	});
@@ -304,7 +253,7 @@ function contentInit() {
  * @returns {Object} - The cached info, or null.
  */
 function registerColumn(columnNode) {
-	//logDebug("Column registered");
+	//RNE.logging.debug("Column registered");
 
 	// Enforce uniqueness.
 	var columnInfo = null;
@@ -390,7 +339,7 @@ function registerItem(node, itemType) {
 	var oldInfo = getItemInfo(node)
 	if (oldInfo != null) return oldInfo;
 
-	//logDebug("Stream item registered");
+	//RNE.logging.debug("Stream item registered");
 
 	var userIds = getItemUsers(node, itemType);
 
@@ -558,7 +507,7 @@ function redactUser(userId) {
 			setItemRedacted(itemInfo, true);
 		}
 	}
-	//logDebug("Redacted a user id "+ userId +" (count: "+ count +")");
+	//RNE.logging.debug("Redacted a user id "+ userId +" (count: "+ count +")");
 }
 
 /**
@@ -575,7 +524,7 @@ function isItemTainted(itemInfo) {
 		var userId = userIds[i];
 		evilness = getUserEvilness(userId);
 		if (evilness) {
-			//logDebug("Found a naughty user id "+ userId);
+			//RNE.logging.debug("Found a naughty user id "+ userId);
 			break;
 		}
 	}
@@ -636,7 +585,7 @@ function setColumnRedacted(columnInfo, b) {
  * Registers all column and stream-item elements currently present.
  */
 function registerAllColumns() {
-	logDebug("Registering all columns");  // TODO: Remove me.
+	RNE.logging.debug("Registering all columns");  // TODO: Remove me.
 
 	var columnSections = contentState["cols_div"].querySelectorAll(":scope > div.app-columns > section.column");
 	for (var i=0; i < columnSections.length; i++) {
@@ -650,7 +599,7 @@ function registerAllColumns() {
  * Stream-items' redaction status will be unaffected. Call setAllItemsRedacted(false) beforehand!
  */
 function unregisterAllColumns() {
-	//logDebug("Unregistering all columns");  // TODO: Remove me.
+	//RNE.logging.debug("Unregistering all columns");  // TODO: Remove me.
 
 	var i = contentState["columns"].length;
 	while (i--) {
@@ -733,7 +682,7 @@ backgroundPort.onMessage.addListener(
 		if (contentState["cols_div"] == null) return;  // No cols div, ignore all messages.
 
 		if (message.type == "reset_evilness") {
-			logDebug("Message received: "+ message.type);
+			RNE.logging.debug("Message received: "+ message.type);
 			resetUsersEvilness();
 			setAllItemsRedacted(false);
 
@@ -741,7 +690,7 @@ backgroundPort.onMessage.addListener(
 			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
 		}
 		else if (message.type == "evilness_result") {
-			//logDebug("Message received: "+ message.type +", "+ message.value);
+			//RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 			for (key in message.value) {
 				if (!message.value.hasOwnProperty(key)) continue;
 
@@ -752,7 +701,7 @@ backgroundPort.onMessage.addListener(
 			}
 		}
 		else if (message.type == "set_redacting_tweetdeck") {
-			logDebug("Message received: "+ message.type +", "+ message.value);
+			RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 			var b = Boolean(message.value);
 			if (b && b != contentState["redacting"]) {
 				// Monitor if not already doing so and redact.
@@ -767,7 +716,7 @@ backgroundPort.onMessage.addListener(
 			}
 		}
 		else if (message.type == "set_redaction_style") {
-			logDebug("Message received: "+ message.type +", "+ message.value);
+			RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 			var name = message.value;
 			var cssFiles = {"blank":"tweetdeck-blank.css", "faded":"tweetdeck-faded.css"};
 			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
@@ -778,7 +727,7 @@ backgroundPort.onMessage.addListener(
 
 // Content scripts are left running when the extension is reloaded/updated.
 backgroundPort.onDisconnect.addListener(function() {
-	logWarn("Connection lost to background script! The page needs reloading.");
+	RNE.logging.warning("Connection lost to background script! The page needs reloading.");
 
 	panic();
 });
