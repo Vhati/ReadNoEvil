@@ -11,7 +11,7 @@ function columnsMutationCallback(mutations) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				if (addedNode.nodeName.match(/\bsection\b/i) && addedNode.classList.contains("column")) {
+				if (addedNode.nodeName.match(/\bsection\b/i) && addedNode.classList.contains("js-column")) {
 
 					var columnInfo = registerColumn(addedNode);
 					setColumnRedacted(columnInfo, true);
@@ -22,7 +22,7 @@ function columnsMutationCallback(mutations) {
 			for (var i=0; i < mutation.removedNodes.length; i++) {
 				var removedNode = mutation.removedNodes[i];
 
-				if (removedNode.nodeName.match(/\bsection\b/i) && removedNode.classList.contains("column")) {
+				if (removedNode.nodeName.match(/\bsection\b/i) && removedNode.classList.contains("js-column")) {
 
 					var columnInfo = getColumnInfo(removedNode);
 
@@ -40,7 +40,7 @@ function columnsMutationCallback(mutations) {
 /**
  * A callback for MutationObservers watching individual columns.
  *
- * A section.column > div.column-holder has div.column-panel (regular stream)
+ * A section.js-column > div.column-holder has div.column-panel (regular stream)
  * and div.column-detail (expanded detailed tweet and replies). The latter is
  * populated when a regular tweet is clicked.
  */
@@ -249,7 +249,7 @@ function contentInit() {
  * Columns which have already been registered will be ignored.
  * Registering a column one or more times will also register nested stream-items.
  *
- * @param {HTMLElement} columnNode - A section.column element, containing article.stream-item elements.
+ * @param {HTMLElement} columnNode - A section.js-column element, containing article.stream-item elements.
  * @returns {Object} - The cached info, or null.
  */
 function registerColumn(columnNode) {
@@ -583,13 +583,20 @@ function setColumnRedacted(columnInfo, b) {
 
 /**
  * Registers all column and stream-item elements currently present.
+ *
+ * This includes the regular columns, and the preview seen when preparing to add a search.
  */
 function registerAllColumns() {
 	RNE.logging.debug("Registering all columns");  // TODO: Remove me.
 
-	var columnSections = contentState["cols_div"].querySelectorAll(":scope > div.app-columns > section.column");
+	var columnSections = contentState["cols_div"].querySelectorAll(":scope > div.app-columns > section.js-column");
 	for (var i=0; i < columnSections.length; i++) {
 		registerColumn(columnSections[i]);
+	}
+
+	var searchPreviewSection = document.querySelector("div.app-search-tweet-results > section.js-column");
+	if (searchPreviewSection != null) {
+		registerColumn(searchPreviewSection);
 	}
 }
 
@@ -625,9 +632,11 @@ function setRedacting(b) {
 
 	if (b) {
 		var appColsDiv = contentState["cols_div"].querySelector(":scope > div.app-columns");
+		var appSearchPreviewDiv = document.querySelector("div.app-search-tweet-results");
 
 		var colsCfg = {childList:true, attributes:false, characterData:false, subtree:false};
 		contentState["cols_observer"].observe(appColsDiv, colsCfg);
+		contentState["cols_observer"].observe(appSearchPreviewDiv, colsCfg);
 
 		for (var i=0; i < contentState["columns"].length; i++) {
 			var columnInfo = contentState["columns"][i];
