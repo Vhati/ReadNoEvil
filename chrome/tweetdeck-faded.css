@@ -6,7 +6,8 @@ article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body 
 */
 
 
-/* Regular Tweet */
+
+/* Regular tweet */
 
 article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > header.tweet-header > time.tweet-timestamp > a:last-child:after {
   display: inline-block;
@@ -33,6 +34,7 @@ article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body 
 article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > div.tweet-body > div.quoted-tweet div.media-preview {
   display: none;
 }
+
 
 
 /* Account activity */

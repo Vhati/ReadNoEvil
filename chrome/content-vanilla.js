@@ -2,6 +2,13 @@ RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
+var ItemType = {
+	TWEET: "tweet",
+	PROFILE_CARD: "profile_card"
+};
+
+
+
 /**
  * A callback for MutationObservers watching streams.
  */
@@ -48,19 +55,21 @@ function streamMutationCallback(mutations) {
 
 
 
-var TWEET = "tweet";
 
 /**
  * Returns the type of a stream-item node, based on DOM structure.
  *
  * @param {HTMLElement} node - A stream-item element (tweet.div[data-user-id]).
- * @returns {string} - TWEET, or null.
+ * @returns {string} - An ItemType constant, or null.
  */
 function getItemType(node) {
 	if (node.nodeName.match(/\bdiv\b/i) && node.classList.contains("tweet") && node.hasAttribute("data-user-id")) {
-
 		var contentDiv = node.querySelector(":scope > div.content");
-		if (contentDiv != null) return TWEET;
+		if (contentDiv != null) return ItemType.TWEET;
+	}
+	else if (node.nodeName.match(/\bdiv\b/i) && node.classList.contains("ProfileCard") && node.hasAttribute("data-user-id")) {
+		var bioDiv = node.querySelector(":scope > div.ProfileCard-content p.ProfileCard-bio");
+		if (bioDiv != null) return ItemType.PROFILE_CARD;
 	}
 
 	return null;
@@ -90,9 +99,11 @@ function dredgeInterestingItems(node) {
 	// TODO: Sort out nesting?
 	var candidates = [];
 	var tweetDivs = node.querySelectorAll("div.tweet");
+	var profileCardDivs = node.querySelectorAll("div.ProfileCard");
 
 	// Call push(), having exploded the array-like object into individual args.
 	Array.prototype.push.apply(candidates, tweetDivs);
+	Array.prototype.push.apply(candidates, profileCardDivs);
 
 	for (var i=0; i < candidates.length; i++) {
 		var candidateType = getItemType(candidates[i]);
@@ -124,9 +135,8 @@ function panic() {
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
-	// div class can be .search-stream,.profile-stream,.home-stream,.permalink-stream
-	// Two permalink-stream divs wrap replies in a thread, before/after the selected detailed tweet.
-	// Its child, ol#stream-items-id is NOT unique on permalink (thread) pages!
+	// When looking at a permalinked thread, replies before/after the detailed tweet
+	// are in separate stream divs. The ol#stream-items-id is NOT unique!
 
 	contentState["streams"] = document.querySelectorAll("ol.js-navigable-stream");
 	unregisterAllItems();
@@ -200,7 +210,7 @@ function contentInit() {
  * Nodes which have already been registered will be ignored.
  *
  * @param {HTMLElement} node - An element representing a stream-item.
- * @param {string} itemType - One of: TWEET.
+ * @param {string} itemType - An ItemType constant.
  * @returns {Object} - The cached info, or null.
  */
 function registerItem(node, itemType) {
@@ -210,24 +220,24 @@ function registerItem(node, itemType) {
 
 	//RNE.logging.debug("Stream item registered");
 
-	var userIds = getItemUsers(node, itemType);
+	var users = getItemUsers(node, itemType);
 
-	var itemInfo = {"node":node, "type":itemType, "userIds":userIds};
+	var itemInfo = {"node":node, "type":itemType, "primaryUserId":users.primaryUserId, "userIds":users.userIds};
 	contentState["items"].push(itemInfo);
 
-	var newUsers = [];
-	for (var i=0; i < userIds.length; i++) {
-		var userId = userIds[i];
+	var newUserIds = [];
+	for (var i=0; i < itemInfo.userIds.length; i++) {
+		var userId = itemInfo.userIds[i];
 		if (userId in contentState["users"]) {
 			contentState["users"][userId].count += 1;
 		} else {
 			contentState["users"][userId] = {"count":1, "evil":null};
-			newUsers.push(userId);
+			newUserIds.push(userId);
 		}
 	}
 
-	if (newUsers.length > 0) {
-		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUsers});
+	if (newUserIds.length > 0) {
+		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUserIds});
 	}
 
 	return itemInfo;
@@ -330,25 +340,43 @@ function getUserEvilness(userId) {
 
 
 /**
- * Returns a list of author userIds within a stream-item.
+ * Returns userIds present within a stream-item.
+ *
+ * A tweet's author will be the primary userId.
  *
  * @param {HTMLElement} node - An element, representing a known stream-item.
- * @param {string} type - One of: TWEET.
- * @returns {string[]}
+ * @param {string} type - An ItemType constant.
+ * @returns {Object} - {primaryUserId:string, userIds:string[]}
  */
 function getItemUsers(node, itemType) {
-	userIds = [];
+	var primaryUserId = null;
+	var userIds = [];
 
-	if (itemType === TWEET) {
+	if (itemType === ItemType.TWEET) {
 		var origTweetDiv = node;
 		var userId = origTweetDiv.getAttribute("data-user-id")
-		if (userId != null) userIds.push(""+ userId);
+		if (userId) {
+			primaryUserId = ""+ userId;
+			userIds.push(""+ userId);
+		}
 
 		var quoteTweetDiv = node.querySelector("div.QuoteTweet-innerContainer[data-user-id]");
-		if (quoteTweetDiv != null) userIds.push(""+ quoteTweetDiv.getAttribute("data-user-id"));
+		if (quoteTweetDiv != null) {
+			var userId = quoteTweetDiv.getAttribute("data-user-id");
+			if (userId) {
+				userIds.push(""+ userId);
+			}
+		}
+	}
+	else if (itemType === ItemType.PROFILE_CARD) {
+		var userId = node.getAttribute("data-user-id")
+		if (userId) {
+			primaryUserId = ""+ userId;
+			userIds.push(""+ userId);
+		}
 	}
 
-	return userIds;
+	return {"primaryUserId":primaryUserId, "userIds":userIds};
 }
 
 /**
@@ -396,9 +424,13 @@ function isItemTainted(itemInfo) {
  * @param {Boolean} b - True to redact, false to un-redact
  */
 function setItemRedacted(itemInfo, b) {
-	if (itemInfo.type === TWEET) {
+	if (itemInfo.type === ItemType.TWEET) {
 		var methodName = (b ? "add" : "remove");
 		itemInfo.node.classList[methodName]("rne-vanilla-tweet-redacted");
+	}
+	else if (itemInfo.type === ItemType.PROFILE_CARD) {
+		var methodName = (b ? "add" : "remove");
+		itemInfo.node.classList[methodName]("rne-vanilla-profile-card-redacted");
 	}
 }
 

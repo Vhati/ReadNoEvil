@@ -6,7 +6,8 @@ div.rne-vanilla-tweet-redacted  > div.content > *:not(.stream-item-header) {
 */
 
 
-/* Regular Tweet */
+
+/* Regular tweet */
 
 div.rne-vanilla-tweet-redacted  > div.content  > div.stream-item-header > .time > a.js-permalink:after {
   display: inline-block;
@@ -36,4 +37,22 @@ div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content
 /* Quoted tweet thumbnail image. */
 div.rne-vanilla-tweet-redacted  > div.content > div.QuoteTweet div.tweet-content > div.QuoteMedia {
   display: none;
+}
+
+
+
+/* Profile card */
+
+div.rne-vanilla-profile-card-redacted  > div.ProfileCard-content  span.UserActions-moreActions:after {
+  display: inline-block;
+  margin-left: 5px;
+  content: "";
+  width: 1em;
+  height: 1em;
+  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background-size: 1em;
+}
+/* Profile card bio text */
+div.rne-vanilla-profile-card-redacted  > div.ProfileCard-content p.ProfileCard-bio {
+  visibility: hidden;
 }

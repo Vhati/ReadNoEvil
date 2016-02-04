@@ -2,6 +2,13 @@ RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
+var ItemType = {
+	TWEET: "tweet",
+	ACCOUNT_ACTIVITY: "account_activity"
+};
+
+
+
 /**
  * A callback for MutationObservers watching the app-columns div.
  */
@@ -87,14 +94,11 @@ function columnMutationCallback(mutations) {
 
 
 
-var TWEET = "tweet";
-var ACCOUNT_ACTIVITY = "account_activity";
-
 /**
  * Returns the type of a stream-item node, based on DOM structure.
  *
  * @param {HTMLElement} node - A stream-item element.
- * @returns {string} - TWEET, ACCOUNT_ACTIVITY, or null.
+ * @returns {string} - An ItemType constant, or null.
  */
 function getItemType(node) {
 	if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
@@ -103,11 +107,11 @@ function getItemType(node) {
 
 		// Regular tweet.
 		var tweetEllipsisAnchor = node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
-		if (tweetEllipsisAnchor) return TWEET;
+		if (tweetEllipsisAnchor) return ItemType.TWEET;
 
 		// Account event (e.g., someone's new follower).
 		var acctActionsBtn = node.querySelector(":scope > div.item-box div.account-summary > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
-		if (acctActionsBtn) return ACCOUNT_ACTIVITY;
+		if (acctActionsBtn) return ItemType.ACCOUNT_ACTIVITY;
 	}
 
 	return null;
@@ -331,7 +335,7 @@ function getColumnInfo(node) {
  * Nodes which have already been registered will be ignored.
  *
  * @param {HTMLElement} node - An element representing a stream-item.
- * @param {string} itemType - One of: TWEET or ACCOUNT_ACTIVITY.
+ * @param {string} itemType - An ItemType constant.
  * @returns {Object} - The cached info, or null.
  */
 function registerItem(node, itemType) {
@@ -462,13 +466,13 @@ function getUserEvilness(userId) {
  * Returns a list of author userIds within a stream-item.
  *
  * @param {HTMLElement} node - An element, representing a known stream-item.
- * @param {string} type - One of: TWEET or ACCOUNT_ACTIVITY.
+ * @param {string} type - An ItemType constant.
  * @returns {string[]}
  */
 function getItemUsers(node, itemType) {
 	userIds = [];
 
-	if (itemType === TWEET) {
+	if (itemType === ItemType.TWEET) {
 		var origTweetDiv = node.querySelector(":scope > div.item-box div.tweet");
 		if (origTweetDiv != null) {
 			var origEllipsisAnchor = origTweetDiv.querySelector(":scope > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
@@ -480,7 +484,7 @@ function getItemUsers(node, itemType) {
 			//var quoteTweetDiv = origTweetDiv.querySelector("div.tweet-body > div.quoted-tweet");
 		}
 	}
-	else if (itemType === ACCOUNT_ACTIVITY) {
+	else if (itemType === ItemType.ACCOUNT_ACTIVITY) {
 		var acctDiv = node.querySelector(":scope > div.item-box div.account-summary");
 		if (acctDiv != null) {
 			var acctActionsBtn = acctDiv.querySelector(":scope > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
@@ -538,11 +542,11 @@ function isItemTainted(itemInfo) {
  * @param {Boolean} b - True to redact, false to un-redact
  */
 function setItemRedacted(itemInfo, b) {
-	if (itemInfo.type === TWEET) {
+	if (itemInfo.type === ItemType.TWEET) {
 		var methodName = (b ? "add" : "remove");
 		itemInfo.node.classList[methodName]("rne-tweetdeck-tweet-redacted");
 	}
-	else if (itemInfo.type === ACCOUNT_ACTIVITY) {
+	else if (itemInfo.type === ItemType.ACCOUNT_ACTIVITY) {
 		var methodName = (b ? "add" : "remove");
 		itemInfo.node.classList[methodName]("rne-tweetdeck-account-activity-redacted");
 	}
