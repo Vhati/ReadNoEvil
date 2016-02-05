@@ -17,7 +17,7 @@ RNE.dialog = RNE.dialog || (function() {
 			// A 'lightbox' behind the dialog, filling the viewport to intercept and ignore clicks.
 
 			var viewportDiv = document.createElement("div");
-			viewportDiv.setAttribute("style", "position:absolute; width:100%; height:100%; z-index:2000; background-color:rgba(255,255,255,0.4);");
+			viewportDiv.setAttribute("style", "position:absolute; width:100%; height:100%; z-index:2000; background-color:rgba(255,255,255,0.6);");
 			viewportDiv.style.top = window.pageYOffset +"px";
 			viewportDiv.style.left = window.pageXOffset +"px";
 
