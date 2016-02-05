@@ -721,6 +721,7 @@ function fetchBlockListBackend(fetchState) {
 			}
 			else {
 				RNE.logging.info("Block list fetch completed");
+				announceStatus("Block list fetch completed.", "notice", true);
 
 				setBlockList(fetchState["new_list"], Date.now(), true);
 
