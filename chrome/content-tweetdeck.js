@@ -2,26 +2,143 @@ RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
-var ItemType = {
-	TWEET: "tweet",
-	ACCOUNT_ACTIVITY: "account_activity"
+var UpstreamType = {};
+
+UpstreamType.APP_COLUMNS = {     // Regular columns.
+	name: "APP_COLUMNS",
+
+	dredgeSelector: "div#container > div.app-columns",
+	unique: true,
+	subtree: false
+};
+
+UpstreamType.SEARCH_PREVIEW = {  // The preview seen when preparing to add a search.
+	name: "SEARCH_PREVIEW",
+
+	dredgeSelector: "div.app-search-tweet-results",
+	unique: true,
+	subtree: false
+};
+
+
+
+var StreamType = {};
+
+StreamType.COLUMN = {
+	name: "COLUMN",
+
+	dredgeSelector: "section.js-column",
+
+	testNode: function(node) {
+		if (node.nodeName.match(/\bsection\b/i) && node.classList.contains("js-column")) return true;
+		return false;
+	}
+};
+
+
+
+var ItemType = {};
+
+ItemType.TWEET = {
+	name: "TWEET",
+
+	dredgeSelector: "article.stream-item",
+
+	testNode: function(node) {
+		// In notifications columns, div.tweet is often wrapped in span.txt-mute.
+
+		if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
+			var tweetEllipsisAnchor = node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
+			if (tweetEllipsisAnchor) return true;
+		}
+		return false;
+	},
+
+	scrapeUsers: function(node) {
+		var primaryUserId = null;
+		userIds = [];
+
+		var origTweetDiv = node.querySelector(":scope > div.item-box div.tweet");
+		if (origTweetDiv != null) {
+			var origEllipsisAnchor = origTweetDiv.querySelector(":scope > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
+			if (origEllipsisAnchor != null) {
+				var userId = origEllipsisAnchor.getAttribute("data-user-id");
+				if (userId) {
+					primaryUserId = ""+ userId;
+					userIds.push(""+ userId);
+				}
+			}
+
+			// Quoted tweets have no userId. :/
+			//var quoteTweetDiv = origTweetDiv.querySelector(":scope > div.tweet-body > div.quoted-tweet");
+		}
+
+		return {"primaryUserId":primaryUserId, "userIds":userIds};
+	},
+
+	setRedacted: function(node, b) {
+		var methodName = (b ? "add" : "remove");
+		node.classList[methodName]("rne-tweetdeck-tweet-redacted");
+	}
+};
+
+ItemType.ACCOUNT_ACTIVITY = {  // Account event (e.g., someone's new follower).
+	name: "ACCOUNT_ACTIVITY",
+
+	dredgeSelector: "article.stream-item",
+
+	testNode: function(node) {
+		if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
+			var acctActionsBtn = node.querySelector(":scope > div.item-box div.account-summary > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
+			if (acctActionsBtn) return true;
+		}
+		return false;
+	},
+
+	scrapeUsers: function(node) {
+		var primaryUserId = null;
+		userIds = [];
+
+		var acctDiv = node.querySelector(":scope > div.item-box div.account-summary");
+		if (acctDiv != null) {
+			var acctActionsBtn = acctDiv.querySelector(":scope > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
+			if (acctActionsBtn != null) {
+				var userId = acctActionsBtn.getAttribute("data-user-id");
+				if (userId) {
+					primaryUserId = ""+ userId;
+					userIds.push(""+ userId);
+				}
+
+			}
+		}
+
+		return {"primaryUserId":primaryUserId, "userIds":userIds};
+	},
+
+	setRedacted: function(node, b) {
+		var methodName = (b ? "add" : "remove");
+		node.classList[methodName]("rne-tweetdeck-account-activity-redacted");
+	}
 };
 
 
 
 /**
- * A callback for MutationObservers watching the app-columns div.
+ * A MutationObserver callback watching ancestors for added/removed streams.
  */
-function columnsMutationCallback(mutations) {
+function upstreamMutationCallback(mutations) {
 	mutations.forEach(function(mutation) {
 		if (mutation.addedNodes != null) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				if (addedNode.nodeName.match(/\bsection\b/i) && addedNode.classList.contains("js-column")) {
+				var dredgedStreams = dredgeStreams(addedNode);
 
-					var columnInfo = registerColumn(addedNode);
-					setColumnRedacted(columnInfo, true);
+				for (var j=0; j < dredgedStreams.length; j++) {
+					var dredgedStream = dredgedStreams[j];
+
+					var streamInfo = registerStream(dredgedStream.node, dredgedStream.type);
+					setStreamRedacted(streamInfo, true);
 				}
 			}
 		}
@@ -29,14 +146,17 @@ function columnsMutationCallback(mutations) {
 			for (var i=0; i < mutation.removedNodes.length; i++) {
 				var removedNode = mutation.removedNodes[i];
 
-				if (removedNode.nodeName.match(/\bsection\b/i) && removedNode.classList.contains("js-column")) {
+				var dredgedStreams = dredgeStreams(removedNode);
 
-					var columnInfo = getColumnInfo(removedNode);
+				for (var j=0; j < dredgedStreams.length; j++) {
+					var dredgedStream = dredgedStreams[j];
 
-					if (columnInfo != null) {
-						columnInfo.observer.disconnect();
-						setColumnRedacted(columnInfo, false);
-						unregisterColumn(columnInfo);
+					var streamInfo = getStreamInfo(removedNode);
+
+					if (streamInfo != null) {
+						streamInfo.observer.disconnect();
+						setStreamRedacted(streamInfo, false);
+						unregisterStream(streamInfo);
 					}
 				}
 			}
@@ -45,13 +165,13 @@ function columnsMutationCallback(mutations) {
 }
 
 /**
- * A callback for MutationObservers watching individual columns.
+ * A MutationObserver callback watching streams for added/removed items.
  *
  * A section.js-column > div.column-holder has div.column-panel (regular stream)
  * and div.column-detail (expanded detailed tweet and replies). The latter is
  * populated when a regular tweet is clicked.
  */
-function columnMutationCallback(mutations) {
+function streamMutationCallback(mutations) {
 	mutations.forEach(function(mutation) {
 		if (mutation.addedNodes != null) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
@@ -98,27 +218,62 @@ function columnMutationCallback(mutations) {
  * Returns the type of a stream-item node, based on DOM structure.
  *
  * @param {HTMLElement} node - A stream-item element.
- * @returns {string} - An ItemType constant, or null.
+ * @returns {string} - An ItemType name, or null.
  */
 function getItemType(node) {
-	if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
+	var typeObjs = [ItemType.TWEET, ItemType.ACCOUNT_ACTIVITY];
 
-		// In notifications columns, div.tweet is often wrapped in span.txt-mute.
+	for (var i=0; i < typeObjs.length; i++) {
+		var typeObj = typeObjs[i];
 
-		// Regular tweet.
-		var tweetEllipsisAnchor = node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
-		if (tweetEllipsisAnchor) return ItemType.TWEET;
-
-		// Account event (e.g., someone's new follower).
-		var acctActionsBtn = node.querySelector(":scope > div.item-box div.account-summary > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
-		if (acctActionsBtn) return ItemType.ACCOUNT_ACTIVITY;
+		if (typeObj.testNode(node)) return typeObj.name;
 	}
 
 	return null;
 }
 
 /**
- * Returns info about nested elements worth registering.
+ * Returns info about nested stream elements worth registering.
+ *
+ * MutationObservers watching subtrees aren't notified about *every* tag, just
+ * the highest-level ones.
+ *
+ * @param {HTMLElement} node - An ancestor to search within.
+ * @returns {object[]} - A list of {node:HTMLElement, type:string}
+ */
+function dredgeStreams(node) {
+	var results = [];
+	if (!node.querySelectorAll) return results;
+
+	var typeObjs = [StreamType.COLUMN];
+
+	for (var i=0; i < typeObjs.length; i++) {
+		var typeObj = typeObjs[i];
+
+		if (typeObj.testNode(node)) {
+			results.push({"node":node, "type":typeObj.name});
+			return results;
+			// TODO: Decide whether to return now or search for nested items?
+		}
+	}
+
+	for (var i=0; i < typeObjs.length; i++) {
+		var typeObj = typeObjs[i];
+
+		var candidates = node.querySelectorAll(typeObj.dredgeSelector);
+		for (var j=0; j < candidates.length; j++) {
+			var candidateNode = candidates[j];
+			if (typeObj.testNode(candidateNode)) {
+				results.push({"node":candidateNode, "type":typeObj.name});
+			}
+		}
+	}
+
+	return results;
+}
+
+/**
+ * Returns info about nested stream-item elements worth registering.
  *
  * MutationObservers watching subtrees aren't notified about *every* tag, just
  * the highest-level ones.
@@ -130,25 +285,30 @@ function dredgeInterestingItems(node) {
 	var results = [];
 	if (!node.querySelectorAll) return results;
 
-	var nodeType = getItemType(node);
-	if (nodeType != null) {
-		results.push({"node":node, "type":nodeType});
-		return results;
-		// TODO: Decide if type precludes searching for nested items.
+	var typeObjs = [ItemType.TWEET, ItemType.ACCOUNT_ACTIVITY];
+
+	for (var i=0; i < typeObjs.length; i++) {
+		var typeObj = typeObjs[i];
+
+		if (typeObj.testNode(node)) {
+			results.push({"node":node, "type":typeObj.name});
+			return results;
+			// TODO: Decide whether to return now or search for nested items?
+		}
 	}
 
 	// Carve out candidates with selectors, then validate their structure.
 	// TODO: Sort out nesting?
-	var candidates = [];
-	var itemDivs = node.querySelectorAll("article.stream-item");
 
-	// Call push(), having exploded the array-like object into individual args.
-	Array.prototype.push.apply(candidates, itemDivs);
+	for (var i=0; i < typeObjs.length; i++) {
+		var typeObj = typeObjs[i];
 
-	for (var i=0; i < candidates.length; i++) {
-		var candidateType = getItemType(candidates[i]);
-		if (candidateType != null) {
-			results.push({"node":candidates[i], "type":candidateType});
+		var candidates = node.querySelectorAll(typeObj.dredgeSelector);
+		for (var j=0; j < candidates.length; j++) {
+			var candidateNode = candidates[j];
+			if (typeObj.testNode(candidateNode)) {
+				results.push({"node":candidateNode, "type":typeObj.name});
+			}
 		}
 	}
 
@@ -161,10 +321,16 @@ function dredgeInterestingItems(node) {
  * Tries to get this script into an inert state, in case of emergency.
  */
 function panic() {
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
+		upstreamInfo.observer.disconnect();
+	}
+	contentState["upstreams"] = [];
+
 	setRedacting(false);
 	setAllItemsRedacted(false);
-	unregisterAllColumns();
-	contentState["cols_div"] = null;
+	unregisterAllStreams();
+	contentState["streams"] = [];
 
 	if (contentState["app_observer"]) {
 		contentState["app_observer"].disconnect();
@@ -175,16 +341,43 @@ function panic() {
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
-	contentState["cols_div"] = null;
-	contentState["columns"] = [];
-	unregisterAllColumns();
-
-	var colsDiv = document.querySelector("div#container");
-	if (colsDiv == null) {
-		RNE.logging.debug("No columns container yet");
-		return;
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
+		upstreamInfo.observer.disconnect();
 	}
-	contentState["cols_div"] = colsDiv;
+	contentState["upstreams"] = [];
+
+	contentState["streams"] = [];
+	unregisterAllStreams();
+
+	var upstreamTypeObjs = [UpstreamType.APP_COLUMNS, UpstreamType.SEARCH_PREVIEW];
+
+	var upstreamNames = [];
+	for (var i=0; i < upstreamTypeObjs.length; i++) {
+		var typeObj = upstreamTypeObjs[i];
+		var upstreamNodes;
+
+		if (typeObj.unique) {
+			var upstreamNode = document.querySelector(typeObj.dredgeSelector);
+			upstreamNodes = upstreamNode != null ? [upstreamNode] : [];
+		} else {
+			upstreamNodes = document.querySelectorAll(typeObj.dredgeSelector);
+		}
+
+		for (var j=0; j < upstreamNodes.length; j++) {
+			var upstreamNode = upstreamNodes[j];
+			var upstreamObserver = new MutationObserver(upstreamMutationCallback);
+
+			contentState["upstreams"].push({"node":upstreamNode, "type":typeObj.name, "observer":upstreamObserver});
+
+			var upstreamCfg = {"childList":true, "attributes":false, "characterData":false, "subtree":typeObj.subtree};
+			upstreamObserver.observe(upstreamNode, upstreamCfg);
+		}
+		if (upstreamNodes.length > 0) upstreamNames.push(typeObj.name);
+	}
+	if (upstreamNames.length > 0) {
+		RNE.logging.debug("Upstreams present: "+ upstreamNames.join(", "));
+	}
 }
 
 /**
@@ -194,7 +387,7 @@ function initStateVars() {
  * out contents. Normally scripts would overlook this, only kicking in if
  * you directly visit a url or reload the page.
  *
- * Even reloading the main page, columns aren't present initially. DOM must
+ * Even reloading the page, columns aren't present initially. DOM must
  * be monitored for their delayed appearance.
  *
  * When the page has changed, the new DOM will be examined, and any
@@ -212,10 +405,14 @@ function contentInit() {
 	setStylesheet("tweetdeck-blank.css");
 
 	initStateVars();
-	if (contentState["cols_div"] != null) {
-		RNE.logging.info("Tweetdeck page with columns loaded");
 
-		backgroundPort.postMessage({type:"init_content"});
+	if (contentState["upstreams"].length > 0) {
+		RNE.logging.info("Tweetdeck page with upstreams loaded");
+
+		backgroundPort.postMessage({"type":"init_content"});
+	}
+	else {
+		RNE.logging.info("No upstreams present, idling");
 	}
 
 	contentState["app_observer"] = new MutationObserver(function(mutations) {
@@ -226,18 +423,19 @@ function contentInit() {
 		});
 
 		if (pageChanged) {
-			if (contentState["cols_div"] != null) {
-				setAllItemsRedacted(false);
+			if (contentState["upstreams"].length > 0) {
 				setRedacting(false);
+				setAllItemsRedacted(false);
+				unregisterAllStreams();
 			}
 			initStateVars();
-			if (contentState["cols_div"] != null) {
-				RNE.logging.info("Tweetdeck page content changed, now has columns");
+			if (contentState["upstreams"].length > 0) {
+				RNE.logging.info("Tweetdeck page content changed, now has upstreams");
 
-				backgroundPort.postMessage({type:"init_content"});
+				backgroundPort.postMessage({"type":"init_content"});
 			}
 			else {
-				RNE.logging.info("Tweetdeck page content changed, no columns present");
+				RNE.logging.info("Tweetdeck page content changed, no upstreams present");
 			}
 		}
 	});
@@ -248,85 +446,84 @@ function contentInit() {
 
 
 /**
- * Caches info about a column for looking up later.
+ * Caches info about a stream for looking up later.
  *
- * Columns which have already been registered will be ignored.
- * Registering a column one or more times will also register nested stream-items.
+ * Streams which have already been registered will be ignored.
+ * Registering a stream one or more times will also register nested stream-items.
  *
- * @param {HTMLElement} columnNode - A section.js-column element, containing article.stream-item elements.
+ * @param {HTMLElement} streamNode - A stream element, containing stream-item elements.
+ * @param {string} streamType - A StreamType name.
  * @returns {Object} - The cached info, or null.
  */
-function registerColumn(columnNode) {
-	//RNE.logging.debug("Column registered");
+function registerStream(streamNode, streamType) {
+	RNE.logging.debug("Stream registered");
 
 	// Enforce uniqueness.
-	var columnInfo = null;
-	for (var i=0; i < contentState["columns"].length; i++) {
-		if (contentState["columns"][i].node === columnNode) {
-			columnInfo = contentState["columns"][i];
+	var streamInfo = null;
+	for (var i=0; i < contentState["streams"].length; i++) {
+		if (contentState["streams"][i].node === streamNode) {
+			streamInfo = contentState["streams"][i];
 			break;
 		}
 	}
-	if (columnInfo == null) {
-		var columnObserver = new MutationObserver(columnMutationCallback);
+	if (streamInfo == null) {
+		var streamObserver = new MutationObserver(streamMutationCallback);
 
-		columnInfo = {"node":columnNode, "observer":columnObserver};
-		contentState["columns"].push(columnInfo);
+		streamInfo = {"node":streamNode, "type":streamType, "observer":streamObserver};
+		contentState["streams"].push(streamInfo);
 
 		if (contentState["redacting"]) {
-			var columnCfg = {childList:true, attributes:false, characterData:false, subtree:true};
-			columnObserver.observe(columnNode, columnCfg);
+			var streamCfg = {childList:true, attributes:false, characterData:false, subtree:true};
+			streamObserver.observe(streamNode, streamCfg);
 		}
 	}
 
-	var dredgedItems = dredgeInterestingItems(columnNode);
+	var dredgedItems = dredgeInterestingItems(streamNode);
 	for (var i=0; i < dredgedItems.length; i++) {
 		var dredgedItem = dredgedItems[i];
 
 		registerItem(dredgedItem.node, dredgedItem.type);
 	}
 
-	return columnInfo;
+	return streamInfo;
 }
 
 /**
- * Discards cached info about a column.
+ * Discards cached info about a stream.
  *
  * Nested stream-items will also be unregistered.
  *
- * @param {Object} columnInfo - Info which was previously cached with registerColumn().
+ * @param {Object} streamInfo - Info which was previously cached with registerStream().
  */
-function unregisterColumn(columnInfo) {
-	var index = contentState["columns"].indexOf(columnInfo);
+function unregisterStream(streamInfo) {
+	var index = contentState["streams"].indexOf(streamInfo);
 	if (index == -1) return;
 
-	columnInfo.observer.disconnect();
+	streamInfo.observer.disconnect();
 
 	for (var i=0; i < contentState["items"].length; i++) {
-		if (columnInfo.node.contains(contentState["items"][i].node)) {
+		if (streamInfo.node.contains(contentState["items"][i].node)) {
 			unregisterItem(contentState["items"][i]);
 		}
 	}
 
-	contentState["columns"].splice(index, 1);
+	contentState["streams"].splice(index, 1);
 }
 
 /**
- * Returns cached info about a column, or null.
+ * Returns cached info about a stream, or null.
  *
- * @param {HTMLElement} node - A node, which was previously cached with registerColumn().
+ * @param {HTMLElement} node - A node, which was previously cached with registerStream().
  * @returns {Object}
  */
-function getColumnInfo(node) {
-	for (var i=0; i < contentState["columns"].length; i++) {
-		if (contentState["columns"][i].node === node) {
-			return contentState["columns"][i];
+function getStreamInfo(node) {
+	for (var i=0; i < contentState["streams"].length; i++) {
+		if (contentState["streams"][i].node === node) {
+			return contentState["streams"][i];
 		}
 	}
 	return null;
 }
-
-
 
 /**
  * Caches info about a stream-item for looking up later.
@@ -335,7 +532,7 @@ function getColumnInfo(node) {
  * Nodes which have already been registered will be ignored.
  *
  * @param {HTMLElement} node - An element representing a stream-item.
- * @param {string} itemType - An ItemType constant.
+ * @param {string} itemType - An ItemType name.
  * @returns {Object} - The cached info, or null.
  */
 function registerItem(node, itemType) {
@@ -345,24 +542,24 @@ function registerItem(node, itemType) {
 
 	//RNE.logging.debug("Stream item registered");
 
-	var userIds = getItemUsers(node, itemType);
+	var users = getItemUsers(node, itemType);
 
-	var itemInfo = {"node":node, "type":itemType, "userIds":userIds};
+	var itemInfo = {"node":node, "type":itemType, "primaryUserId":users.primaryUserId, "userIds":users.userIds};
 	contentState["items"].push(itemInfo);
 
-	var newUsers = [];
-	for (var i=0; i < userIds.length; i++) {
-		var userId = userIds[i];
+	var newUserIds = [];
+	for (var i=0; i < itemInfo.userIds.length; i++) {
+		var userId = itemInfo.userIds[i];
 		if (userId in contentState["users"]) {
 			contentState["users"][userId].count += 1;
 		} else {
 			contentState["users"][userId] = {"count":1, "evil":null};
-			newUsers.push(userId);
+			newUserIds.push(userId);
 		}
 	}
 
-	if (newUsers.length > 0) {
-		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUsers});
+	if (newUserIds.length > 0) {
+		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUserIds});
 	}
 
 	return itemInfo;
@@ -377,10 +574,12 @@ function unregisterItem(itemInfo) {
 	var index = contentState["items"].indexOf(itemInfo);
 	if (index == -1) return;
 
+	//RNE.logging.debug("Stream item unregistered");
+
 	contentState["items"].splice(index, 1);
 
-	for (var i=0; i < userIds.length; i++) {
-		var userId = userIds[i];
+	for (var i=0; i < itemInfo.userIds.length; i++) {
+		var userId = itemInfo.userIds[i];
 		if (userId in contentState["users"]) {
 			contentState["users"][userId].count -= 1;
 		} else {
@@ -463,38 +662,21 @@ function getUserEvilness(userId) {
 
 
 /**
- * Returns a list of author userIds within a stream-item.
+ * Returns userIds present within a stream-item.
  *
  * @param {HTMLElement} node - An element, representing a known stream-item.
- * @param {string} type - An ItemType constant.
- * @returns {string[]}
+ * @param {string} type - An ItemType name.
+ * @returns {Object} - {primaryUserId:string, userIds:string[]}
  */
 function getItemUsers(node, itemType) {
-	userIds = [];
+	var primaryUserId = null;
+	var userIds = [];
 
-	if (itemType === ItemType.TWEET) {
-		var origTweetDiv = node.querySelector(":scope > div.item-box div.tweet");
-		if (origTweetDiv != null) {
-			var origEllipsisAnchor = origTweetDiv.querySelector(":scope > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
-			if (origEllipsisAnchor != null) {
-				userIds.push(""+ origEllipsisAnchor.getAttribute("data-user-id"));
-			}
-
-			// Quoted tweets have no userId. :/
-			//var quoteTweetDiv = origTweetDiv.querySelector("div.tweet-body > div.quoted-tweet");
-		}
-	}
-	else if (itemType === ItemType.ACCOUNT_ACTIVITY) {
-		var acctDiv = node.querySelector(":scope > div.item-box div.account-summary");
-		if (acctDiv != null) {
-			var acctActionsBtn = acctDiv.querySelector(":scope > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
-			if (acctActionsBtn != null) {
-				userIds.push(""+ acctActionsBtn.getAttribute("data-user-id"));
-			}
-		}
+	if (itemType && ItemType.hasOwnProperty(itemType)) {
+		return ItemType[itemType].scrapeUsers(node);
 	}
 
-	return userIds;
+	return {"primaryUserId":primaryUserId, "userIds":userIds};
 }
 
 /**
@@ -542,13 +724,8 @@ function isItemTainted(itemInfo) {
  * @param {Boolean} b - True to redact, false to un-redact
  */
 function setItemRedacted(itemInfo, b) {
-	if (itemInfo.type === ItemType.TWEET) {
-		var methodName = (b ? "add" : "remove");
-		itemInfo.node.classList[methodName]("rne-tweetdeck-tweet-redacted");
-	}
-	else if (itemInfo.type === ItemType.ACCOUNT_ACTIVITY) {
-		var methodName = (b ? "add" : "remove");
-		itemInfo.node.classList[methodName]("rne-tweetdeck-account-activity-redacted");
+	if (itemInfo.type && ItemType.hasOwnProperty(itemInfo.type)) {
+		ItemType[itemInfo.type].setRedacted(itemInfo.node, b);
 	}
 }
 
@@ -568,53 +745,52 @@ function setAllItemsRedacted(b) {
 }
 
 /**
- * Sets or clears the redaction of registered stream-items within a given column.
+ * Sets or clears the redaction of registered stream-items within a given stream.
  *
  * Only the stream-items involving evil users will actually be redacted.
  *
- * @param {Object} columnInfo - Cached column info.
+ * @param {Object} streamInfo - Cached stream info.
  * @param {Boolean} b - True to redact, false to un-redact
  */
-function setColumnRedacted(columnInfo, b) {
+function setStreamRedacted(streamInfo, b) {
 	for (var i=0; i < contentState["items"].length; i++) {
 		var itemInfo = contentState["items"][i];
 
-		if (columnInfo.node.contains(itemInfo.node)) {
+		if (streamInfo.node.contains(itemInfo.node)) {
 			setItemRedacted(itemInfo, (b && isItemTainted(itemInfo)));
 		}
 	}
 }
 
 /**
- * Registers all column and stream-item elements currently present.
- *
- * This includes the regular columns, and the preview seen when preparing to add a search.
+ * Registers all stream and stream-item elements currently present.
  */
-function registerAllColumns() {
-	RNE.logging.debug("Registering all columns");  // TODO: Remove me.
+function registerAllStreams() {
+	RNE.logging.debug("Registering all streams");  // TODO: Remove me.
 
-	var columnSections = contentState["cols_div"].querySelectorAll(":scope > div.app-columns > section.js-column");
-	for (var i=0; i < columnSections.length; i++) {
-		registerColumn(columnSections[i]);
-	}
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
 
-	var searchPreviewSection = document.querySelector("div.app-search-tweet-results > section.js-column");
-	if (searchPreviewSection != null) {
-		registerColumn(searchPreviewSection);
+		var dredgedStreams = dredgeStreams(upstreamInfo.node);
+		for (var j=0; j < dredgedStreams.length; j++) {
+			var dredgedStream = dredgedStreams[j];
+			registerStream(dredgedStream.node, dredgedStream.type);
+		}
+		// TODO: Honor upstreams' subtree attribute to scan immediate children.
 	}
 }
 
 /**
- * Discards all cached column and stream-item info.
+ * Discards all cached stream and stream-item info.
  *
  * Stream-items' redaction status will be unaffected. Call setAllItemsRedacted(false) beforehand!
  */
-function unregisterAllColumns() {
-	//RNE.logging.debug("Unregistering all columns");  // TODO: Remove me.
+function unregisterAllStreams() {
+	//RNE.logging.debug("Unregistering all streams");  // TODO: Remove me.
 
-	var i = contentState["columns"].length;
+	var i = contentState["streams"].length;
 	while (i--) {
-		unregisterColumn(contentState["columns"][i]);
+		unregisterStream(contentState["streams"][i]);
 	}
 
 	// Explicitly clear all tweet info, just to be sure.
@@ -622,10 +798,8 @@ function unregisterAllColumns() {
 	contentState["users"] = {};
 }
 
-
-
 /**
- * Toggles DOM monitoring to register/redact any dynamically added columns/stream-items.
+ * Toggles DOM monitoring to register/redact any dynamically added stream-items.
  *
  * Existing stream-items' redaction status will be unaffected.
  *
@@ -635,27 +809,31 @@ function setRedacting(b) {
 	contentState["redacting"] = b;
 
 	if (b) {
-		var appColsDiv = contentState["cols_div"].querySelector(":scope > div.app-columns");
-		var appSearchPreviewDiv = document.querySelector("div.app-search-tweet-results");
+		for (var i=0; i < contentState["upstreams"].length; i++) {
+			var upstreamInfo = contentState["upstreams"][i];
+			var typeObj = UpstreamType[upstreamInfo.type];
 
-		var colsCfg = {childList:true, attributes:false, characterData:false, subtree:false};
-		contentState["cols_observer"].observe(appColsDiv, colsCfg);
-		contentState["cols_observer"].observe(appSearchPreviewDiv, colsCfg);
+			var upstreamCfg = {"childList":true, "attributes":false, "characterData":false, "subtree":typeObj.subtree};
+			upstreamInfo.observer.observe(upstreamInfo.node, upstreamCfg);
+		}
 
-		for (var i=0; i < contentState["columns"].length; i++) {
-			var columnInfo = contentState["columns"][i];
+		for (var i=0; i < contentState["streams"].length; i++) {
+			var streamInfo = contentState["streams"][i];
 
-			var columnCfg = {childList:true, attributes:false, characterData:false, subtree:false};
-			columnInfo.observer.observe(columnInfo.node, columnCfg);
+			var observerCfg = {childList:true, attributes:false, characterData:false, subtree:true};
+			streamInfo.observer.observe(streamInfo.node, observerCfg);
 		}
 	}
 	else {
-		contentState["cols_observer"].disconnect();
+		for (var i=0; i < contentState["upstreams"].length; i++) {
+			var upstreamInfo = contentState["upstreams"][i];
+			upstreamInfo.observer.disconnect();
+		}
 
-		for (var i=0; i < contentState["columns"].length; i++) {
-			var columnInfo = contentState["columns"][i];
+		for (var i=0; i < contentState["streams"].length; i++) {
+			var streamInfo = contentState["streams"][i];
 
-			columnInfo.observer.disconnect();
+			streamInfo.observer.disconnect();
 		}
 	}
 }
@@ -683,13 +861,11 @@ function setStylesheet(cssFile) {
 
 var contentState = {};
 contentState["redacting"] = false;
-contentState["block_list"] = null;
 contentState["app_observer"] = null;
-contentState["cols_observer"] = new MutationObserver(columnsMutationCallback);
-contentState["cols_div"] = null;
-contentState["columns"] = [];  // List of {node:element, observer:object}
-contentState["items"] = [];    // List of {node:element, type:string, userIds:string[]}
-contentState["users"] = {};    // Dict of string userIds to {count:number, evil:bool|null}
+contentState["upstreams"] = [];  // List of {node:HTMLElement, type:string, observer:MutationObserver}
+contentState["streams"] = [];    // List of {node:HTMLElement, type:string, observer:MutationObserver}
+contentState["items"] = [];      // List of {node:HTMLElement, type:string, primaryUserId:string, userIds:string[]}
+contentState["users"] = {};      // Dict of string ids to {count:number, evil:bool|null}
 
 
 
@@ -697,7 +873,7 @@ var backgroundPort = chrome.runtime.connect({"name":"content"});
 
 backgroundPort.onMessage.addListener(
 	function(message, sender, sendResponse) {
-		if (contentState["cols_div"] == null) return;  // No cols div, ignore all messages.
+		if (contentState["upstreams"].length == 0) return;  // No upstreams, ignore all messages.
 
 		if (message.type == "reset_evilness") {
 			RNE.logging.debug("Message received: "+ message.type);
@@ -724,13 +900,13 @@ backgroundPort.onMessage.addListener(
 			if (b && b != contentState["redacting"]) {
 				// Monitor if not already doing so and redact.
 				setRedacting(true);
-				registerAllColumns();
+				registerAllStreams();
 				setAllItemsRedacted(true);
 			} else if (b == false) {
 				// Stop monitoring and clear redaction.
 				setRedacting(false);
 				setAllItemsRedacted(false);
-				unregisterAllColumns();
+				unregisterAllStreams();
 			}
 		}
 		else if (message.type == "set_redaction_style") {
@@ -759,6 +935,6 @@ backgroundPort.onDisconnect.addListener(function() {
 
 
 
-backgroundPort.postMessage({type:"show_page_action"});
+backgroundPort.postMessage({"type":"show_page_action"});
 
 contentInit();
