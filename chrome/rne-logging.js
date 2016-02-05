@@ -1,88 +1,74 @@
 var RNE = RNE || {};
 
 RNE.logging = RNE.logging || (function() {
-	var levels = {
-		NONE: 0,
-		ERROR: 1,
-		WARNING: 2,
-		NOTICE: 3,
-		INFO: 4,
-		DEBUG: 5,
-		TRACE: 6
-	};
-
 	// Private
-	var verbosity = levels["DEBUG"];
+	var consoleMethods = [
+		{level:"NONE", nativeName:"log", localName:"log"},
+		{level:"ERROR", nativeName:"error", localName:"error"},
+		{level:"WARNING", nativeName:"warn", localName:"warning"},
+		{level:"NOTICE", nativeName:"log", localName:"notice"},
+		{level:"INFO", nativeName:"log", localName:"info"},
+		{level:"DEBUG", nativeName:"log", localName:"debug"},
+		{level:"TRACE", nativeName:"log", localName:"trace"}
+	];
+
+	var verbosity;
 	var backgroundConsole = false;
 
+
 	// Public
-	return {
-		/**
-		 * NONE, ERROR, WARNING, NOTICE, INFO, DEBUG, TRACE.
-		 */
-		Level: levels,
+	var pub = {};
 
-		/**
-		 * Toggles whether to redirect logs to the background page's console.
-		 *
-		 * Content scripts aren't allowed to set this to true.
-		 * Background scripts don't need to bother with this.
-		 *
-		 * @param {Boolean} b
-		 */
-		setUseBackgroundConsole: function(b) {
-			backgroundConsole = b;
-		},
 
-		/**
-		 * Sets the maximum verbosity level worth logging.
-		 *
-		 * @param {Number} level - One of the constants in RNE.logging.Level.
-		 */
-		setVerbosity: function(level) {
-			verbosity = level;
-		},
+	/** NONE, ERROR, WARNING, NOTICE, INFO, DEBUG, TRACE */
+	pub.Level = {};
+	for (var i=0; i < consoleMethods.length; i++) {
+		pub.Level[consoleMethods[i].level] = i;
+	}
 
-		/**
-		 * Logs a message.
-		 *
-		 * @param {string} message
-		 * @param {Number} level - One of the constants in RNE.logging.Level.
-		 */
-		log: function(message, level) {
-			if (verbosity >= level) {
-				var con = (backgroundConsole ? chrome.extension.getBackgroundPage().console : console);
+	/**
+	 * Sets the maximum verbosity level worth logging.
+	 *
+	 * @param {Number} level - One of the constants in RNE.logging.Level.
+	 */
+	pub.setVerbosity = function(level) {
+		verbosity = level;
 
-				if (level == levels["ERROR"]) {
-					con.error(message);
-				}
-				else if (level == levels["WARNING"]) {
-					con.warn(message);
-				}
-				else {
-					con.log(message);
-				}
+		var pubNames = ["log", "error", "warning", "notice", "info", "debug", "trace"];
+		for (var i=0; i < pubNames.length; i++) {
+			var pubName = pubNames[i];
+			var nativeName;
+			if (pubName == "error") {
+				nativeName = "error";
+			} else if (pubName == "warning") {
+				nativeName = "warn";
+			} else nativeName = "log";
+
+			if (i <= verbosity) {
+				var con = (backgroundConsole ? chrome.extension.getBackgroundPage().console : window.console);
+
+				pub[pubName] = con[nativeName].bind(con);
+			} else {
+				pub[pubName] = function() {};
 			}
-		},
-
-		error: function(message) {
-			RNE.logging.log(message, levels["ERROR"]);
-		},
-		warning: function(message) {
-			RNE.logging.log(message, levels["WARNING"]);
-		},
-		notice: function(message) {
-			RNE.logging.log(message, levels["NOTICE"]);
-		},
-		info: function(message) {
-			RNE.logging.log(message, levels["INFO"]);
-		},
-		debug: function(message) {
-			RNE.logging.log(message, levels["DEBUG"]);
-		},
-		trace: function(message) {
-			RNE.logging.log(message, levels["TRACE"]);
 		}
-
 	};
+
+	/**
+	 * Toggles whether to redirect logs to the background page's console.
+	 *
+	 * Content scripts aren't allowed to set this to true.
+	 * Background scripts don't need to bother with this.
+	 *
+	 * @param {Boolean} b
+	 */
+	pub.setUseBackgroundConsole = function(b) {
+		backgroundConsole = b;
+		pub.setVerbosity(verbosity);
+	};
+
+
+	pub.setVerbosity(pub.Level["DEBUG"]);
+
+	return pub;
 })();
