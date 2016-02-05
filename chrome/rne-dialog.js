@@ -52,7 +52,7 @@ RNE.dialog = RNE.dialog || (function() {
 			});
 
 			var contentDiv = document.createElement("div");
-			contentDiv.setAttribute("style", "width:100%; height:100%; box-sizing:border-box; padding:10px; overflow:auto; text-align:center;");
+			contentDiv.setAttribute("style", "width:100%; height:100%; box-sizing:border-box; padding:10px; overflow:auto; text-align:center; color: black;");
 
 			var textDiv = document.createElement("div"); 
 
