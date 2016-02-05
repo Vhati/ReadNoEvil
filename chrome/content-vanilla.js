@@ -10,7 +10,48 @@ var ItemType = {
 
 
 /**
- * A callback for MutationObservers watching streams.
+ * A MutationObserver callback watching ancestors for added/removed streams.
+ */
+function upstreamMutationCallback(mutations) {
+	mutations.forEach(function(mutation) {
+		if (mutation.addedNodes != null) {
+			for (var i=0; i < mutation.addedNodes.length; i++) {
+				var addedNode = mutation.addedNodes[i];
+
+				var dredgedStreams = dredgeStreams(addedNode);
+
+				for (var j=0; j < dredgedStreams.length; j++) {
+					var dredgedStream = dredgedStreams[j];
+
+					var streamInfo = registerStream(dredgedStream);
+					setStreamRedacted(streamInfo, true);
+				}
+			}
+		}
+		if (mutation.removedNodes != null) {
+			for (var i=0; i < mutation.removedNodes.length; i++) {
+				var removedNode = mutation.removedNodes[i];
+
+				var dredgedStreams = dredgeStreams(removedNode);
+
+				for (var j=0; j < dredgedStreams.length; j++) {
+					var dredgedStream = dredgedStreams[j];
+
+					var streamInfo = getStreamInfo(removedNode);
+
+					if (streamInfo != null) {
+						streamInfo.observer.disconnect();
+						setStreamRedacted(streamInfo, false);
+						unregisterStream(streamInfo);
+					}
+				}
+			}
+		}
+	});
+}
+
+/**
+ * A MutationObserver callback watching streams for added/removed items.
  */
 function streamMutationCallback(mutations) {
 	mutations.forEach(function(mutation) {
@@ -55,7 +96,6 @@ function streamMutationCallback(mutations) {
 
 
 
-
 /**
  * Returns the type of a stream-item node, based on DOM structure.
  *
@@ -73,6 +113,30 @@ function getItemType(node) {
 	}
 
 	return null;
+}
+
+/**
+ * Returns a list of stream elements worth registering.
+ *
+ * MutationObservers watching subtrees aren't notified about *every* tag, just
+ * the highest-level ones.
+ *
+ * @param {HTMLElement} node - An ancestor to search within.
+ * @returns {HTMLElement[]}
+ */
+function dredgeStreams(node) {
+	var results = [];
+	if (!node.querySelectorAll) return results;
+
+	if (node.classList.contains("js-navigable-stream")) {
+		results.push(node);
+		// Don't return yet. Streams can be nested.
+	}
+
+	var selectedNodes = node.querySelectorAll("ol.js-navigable-stream");
+	Array.prototype.push.apply(results, selectedNodes);
+
+	return results;
 }
 
 /**
@@ -121,9 +185,15 @@ function dredgeInterestingItems(node) {
  * Tries to get this script into an inert state, in case of emergency.
  */
 function panic() {
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
+		upstreamInfo.observer.disconnect();
+	}
+	contentState["upstreams"] = [];
+
 	setRedacting(false);
 	setAllItemsRedacted(false);
-	unregisterAllItems();
+	unregisterAllStreams();
 	contentState["streams"] = [];
 
 	if (contentState["nav_observer"]) {
@@ -135,11 +205,37 @@ function panic() {
  * Resets state vars when a page loads initially or swaps out its contents.
  */
 function initStateVars() {
-	// When looking at a permalinked thread, replies before/after the detailed tweet
-	// are in separate stream divs. The ol#stream-items-id is NOT unique!
+	// Note: ol#stream-items-id is NOT unique!
 
-	contentState["streams"] = document.querySelectorAll("ol.js-navigable-stream");
-	unregisterAllItems();
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
+		upstreamInfo.observer.disconnect();
+	}
+	contentState["upstreams"] = [];
+
+	contentState["streams"] = [];
+	unregisterAllStreams();
+
+	var pendingUpstreams = [];
+	var timelineDiv = document.querySelector("div#timeline");
+	if (timelineDiv != null) {
+		RNE.logging.debug("Found a timeline div to watch for streams");
+		pendingUpstreams.push(timelineDiv);
+	}
+	var permalinkDiv = document.querySelector("div.PermalinkOverlay-body");
+	if (permalinkDiv != null) {
+		RNE.logging.debug("Found a permalink overlay div to watch for streams");
+		pendingUpstreams.push(permalinkDiv);
+	}
+	for (var i=0; i < pendingUpstreams.length; i++) {
+		var upstreamNode = pendingUpstreams[i];
+		var upstreamObserver = new MutationObserver(upstreamMutationCallback);
+
+		contentState["upstreams"].push({"node":upstreamNode, "observer":upstreamObserver});
+
+		var ancestorCfg = {childList:true, attributes:false, characterData:false, subtree:true};
+		upstreamObserver.observe(upstreamNode, ancestorCfg);
+	}
 }
 
 /**
@@ -164,10 +260,14 @@ function contentInit() {
 	setStylesheet("vanilla-blank.css");
 
 	initStateVars();
-	if (contentState["streams"].length > 0) {
-		RNE.logging.info("Twitter page with a stream loaded");
+
+	if (contentState["upstreams"].length > 0) {
+		RNE.logging.info("Twitter page with upstreams loaded");
 
 		backgroundPort.postMessage({type:"init_content"});
+	}
+	else {
+		RNE.logging.info("No upstreams present, idling");
 	}
 
 	contentState["nav_observer"] = new MutationObserver(function(mutations) {
@@ -178,22 +278,23 @@ function contentInit() {
 		});
 
 		if (pageChanged) {
-			if (contentState["streams"].length > 0) {
+			if (contentState["upstreams"].length > 0) {
 				// When revisiting previous pages, undo past meddling and init from scratch.
 				// It seems the DOM is cloned, since testing against remembered nodes fails.
 				// Spawned buttons persist but can't be reused: they lose their event listeners!?
 
-				setAllItemsRedacted(false);
 				setRedacting(false);
+				setAllItemsRedacted(false);
+				unregisterAllStreams();
 			}
 			initStateVars();
-			if (contentState["streams"].length > 0) {
-				RNE.logging.info("Twitter page content changed, now has a stream");
+			if (contentState["upstreams"] > 0) {
+				RNE.logging.info("Twitter page content changed, now has upstreams");
 
 				backgroundPort.postMessage({type:"init_content"});
 			}
 			else {
-				RNE.logging.info("Twitter page content changed, no stream present");
+				RNE.logging.info("Twitter page content changed, no upstreams present");
 			}
 		}
 	});
@@ -202,6 +303,85 @@ function contentInit() {
 }
 
 
+
+/**
+ * Caches info about a stream for looking up later.
+ *
+ * Streams which have already been registered will be ignored.
+ * Registering a stream one or more times will also register nested stream-items.
+ *
+ * @param {HTMLElement}  - An ol.js-navigable-stream element, containing stream-item elements.
+ * @returns {Object} - The cached info, or null.
+ */
+function registerStream(streamNode) {
+	RNE.logging.debug("Stream registered");
+
+	// Enforce uniqueness.
+	var streamInfo = null;
+	for (var i=0; i < contentState["streams"].length; i++) {
+		if (contentState["streams"][i].node === streamNode) {
+			streamInfo = contentState["streams"][i];
+			break;
+		}
+	}
+	if (streamInfo == null) {
+		var streamObserver = new MutationObserver(streamMutationCallback);
+
+		streamInfo = {"node":streamNode, "observer":streamObserver};
+		contentState["streams"].push(streamInfo);
+
+		if (contentState["redacting"]) {
+			var streamCfg = {childList:true, attributes:false, characterData:false, subtree:true};
+			streamObserver.observe(streamNode, streamCfg);
+		}
+	}
+
+	var dredgedItems = dredgeInterestingItems(streamNode);
+	for (var i=0; i < dredgedItems.length; i++) {
+		var dredgedItem = dredgedItems[i];
+
+		registerItem(dredgedItem.node, dredgedItem.type);
+	}
+
+	return streamInfo;
+}
+
+/**
+ * Discards cached info about a stream.
+ *
+ * Nested stream-items will also be unregistered.
+ *
+ * @param {Object} streamInfo - Info which was previously cached with registerStream().
+ */
+function unregisterStream(streamInfo) {
+	var index = contentState["streams"].indexOf(streamInfo);
+	if (index == -1) return;
+
+	streamInfo.observer.disconnect();
+
+	for (var i=0; i < contentState["items"].length; i++) {
+		if (streamInfo.node.contains(contentState["items"][i].node)) {
+			unregisterItem(contentState["items"][i]);
+		}
+	}
+
+	contentState["streams"].splice(index, 1);
+}
+
+/**
+ * Returns cached info about a stream, or null.
+ *
+ * @param {HTMLElement} node - A node, which was previously cached with registerStream().
+ * @returns {Object}
+ */
+function getStreamInfo(node) {
+	for (var i=0; i < contentState["streams"].length; i++) {
+		if (contentState["streams"][i].node === node) {
+			return contentState["streams"][i];
+		}
+	}
+	return null;
+}
 
 /**
  * Caches info about a stream-item for looking up later.
@@ -256,8 +436,8 @@ function unregisterItem(itemInfo) {
 
 	contentState["items"].splice(index, 1);
 
-	for (var i=0; i < userIds.length; i++) {
-		var userId = userIds[i];
+	for (var i=0; i < itemInfo.userIds.length; i++) {
+		var userId = itemInfo.userIds[i];
 		if (userId in contentState["users"]) {
 			contentState["users"][userId].count -= 1;
 		} else {
@@ -450,29 +630,53 @@ function setAllItemsRedacted(b) {
 }
 
 /**
- * Registers all stream-item elements currently present.
+ * Sets or clears the redaction of registered stream-items within a given stream.
+ *
+ * Only the stream-items involving evil users will actually be redacted.
+ *
+ * @param {Object} streamInfo - Cached stream info.
+ * @param {Boolean} b - True to redact, false to un-redact
  */
-function registerAllItems() {
-	RNE.logging.debug("Registering all stream-items");  // TODO: Remove me.
+function setStreamRedacted(streamInfo, b) {
+	for (var i=0; i < contentState["items"].length; i++) {
+		var itemInfo = contentState["items"][i];
 
-	for (var i=0; i < contentState["streams"].length; i++) {
-		var itemsNode = contentState["streams"][i];
-		var dredgedItems = dredgeInterestingItems(itemsNode);
-
-		for (var j=0; j < dredgedItems.length; j++) {
-			var dredgedItem = dredgedItems[j];
-
-			registerItem(dredgedItem.node, dredgedItem.type);
+		if (streamInfo.node.contains(itemInfo.node)) {
+			setItemRedacted(itemInfo, (b && isItemTainted(itemInfo)));
 		}
 	}
 }
 
 /**
- * Discards all cached stream-item info.
+ * Registers all stream and stream-item elements currently present.
+ */
+function registerAllStreams() {
+	RNE.logging.debug("Registering all streams");  // TODO: Remove me.
+
+	for (var i=0; i < contentState["upstreams"].length; i++) {
+		var upstreamInfo = contentState["upstreams"][i];
+
+		var streamNodes = document.querySelectorAll("ol.js-navigable-stream");
+		for (var j=0; j < streamNodes.length; j++) {
+			registerStream(streamNodes[j]);
+		}
+	}
+}
+
+/**
+ * Discards all cached stream and stream-item info.
  *
  * Stream-items' redaction status will be unaffected. Call setAllItemsRedacted(false) beforehand!
  */
-function unregisterAllItems() {
+function unregisterAllStreams() {
+	//RNE.logging.debug("Unregistering all streams");  // TODO: Remove me.
+
+	var i = contentState["streams"].length;
+	while (i--) {
+		unregisterStream(contentState["streams"][i]);
+	}
+
+	// Explicitly clear all tweet info, just to be sure.
 	contentState["items"] = [];
 	contentState["users"] = {};
 }
@@ -489,19 +693,28 @@ function setRedacting(b) {
 
 	if (b) {
 		for (var i=0; i < contentState["streams"].length; i++) {
-			var itemsNode = contentState["streams"][i];
+			var streamInfo = contentState["streams"][i];
 
 			var observerCfg = {childList:true, attributes:false, characterData:false, subtree:true};
-			contentState["stream_observer"].observe(itemsNode, observerCfg);
+			streamInfo.observer.observe(streamInfo.node, observerCfg);
 		}
 	}
 	else {
-		contentState["stream_observer"].disconnect();
+		for (var i=0; i < contentState["streams"].length; i++) {
+			var streamInfo = contentState["streams"][i];
+
+			streamInfo.observer.disconnect();
+		}
 	}
 }
 
 
 
+/**
+ * Replaces the redaction stylesheet with another file.
+ *
+ * @param {string} cssFile - A path to the css file, relative to the extension's root.
+ */
 function setStylesheet(cssFile) {
 	var oldLink = document.querySelector("link#rne-stylesheet");
 	if (oldLink != null) document.getElementsByTagName("head")[0].removeChild(oldLink);
@@ -518,12 +731,11 @@ function setStylesheet(cssFile) {
 
 var contentState = {};
 contentState["redacting"] = false;
-contentState["block_list"] = null;
 contentState["nav_observer"] = null;
-contentState["stream_observer"] = new MutationObserver(streamMutationCallback);
-contentState["streams"] = [];
-contentState["items"] = [];   // List of {node:element, type:string, userIds:string[]}
-contentState["users"] = {};   // Dict of string ids to {count:number, evil:bool|null}
+contentState["upstreams"] = [];  // List of {node:HTMLElement, observer:MutationObserver}
+contentState["streams"] = [];    // List of {node:HTMLElement, observer:MutationObserver}
+contentState["items"] = [];      // List of {node:HTMLElement, type:string, primaryUserId:string, userIds:string[]}
+contentState["users"] = {};      // Dict of string ids to {count:number, evil:bool|null}
 
 
 
@@ -531,7 +743,7 @@ var backgroundPort = chrome.runtime.connect({"name":"content"});
 
 backgroundPort.onMessage.addListener(
 	function(message, sender, sendResponse) {
-		if (contentState["streams"].length == 0) return;  // No stream, ignore all messages.
+		if (contentState["upstreams"].length == 0) return;  // No streams, ignore all messages.
 
 		if (message.type == "reset_evilness") {
 			RNE.logging.debug("Message received: "+ message.type);
@@ -558,13 +770,13 @@ backgroundPort.onMessage.addListener(
 			if (b && b != contentState["redacting"]) {
 				// Monitor if not already doing so and redact.
 				setRedacting(true);
-				registerAllItems();
+				registerAllStreams();
 				setAllItemsRedacted(true);
 			} else if (b == false) {
 				// Stop monitoring and clear redaction.
 				setRedacting(false);
 				setAllItemsRedacted(false);
-				unregisterAllItems();
+				unregisterAllStreams();
 			}
 		}
 		else if (message.type == "set_redaction_style") {
@@ -581,14 +793,14 @@ backgroundPort.onMessage.addListener(
 backgroundPort.onDisconnect.addListener(function() {
 	RNE.logging.warning("Connection lost to background script! The page needs reloading.");
 
-	panic();
-
 	RNE.dialog.showMessageBox("ReadNoEvil - Error", "max-content",
 		[
 			"ReadNoEvil stopped running while it had a script injected here.",
 			"Until this page is reloaded, it may be unstable."
 		]
 	);
+
+	panic();
 });
 
 

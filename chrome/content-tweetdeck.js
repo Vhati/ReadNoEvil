@@ -662,6 +662,11 @@ function setRedacting(b) {
 
 
 
+/**
+ * Replaces the redaction stylesheet with another file.
+ *
+ * @param {string} cssFile - A path to the css file, relative to the extension's root.
+ */
 function setStylesheet(cssFile) {
 	var oldLink = document.querySelector("link#rne-stylesheet");
 	if (oldLink != null) document.getElementsByTagName("head")[0].removeChild(oldLink);
@@ -742,14 +747,14 @@ backgroundPort.onMessage.addListener(
 backgroundPort.onDisconnect.addListener(function() {
 	RNE.logging.warning("Connection lost to background script! The page needs reloading.");
 
-	panic();
-
 	RNE.dialog.showMessageBox("ReadNoEvil - Error", "max-content",
 		[
 			"ReadNoEvil stopped running while it had a script injected here.",
 			"Until this page is reloaded, it may be unstable."
 		]
 	);
+
+	panic();
 });
 
 
