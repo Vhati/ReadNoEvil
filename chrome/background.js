@@ -210,9 +210,9 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "init_content") {
 				RNE.logging.info("Content init");
 
+				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
-				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 			}
 			else if (message.type == "test_evilness") {
 				//RNE.logging.debug("Testing evilness: "+ message.userIds.join());
