@@ -357,9 +357,6 @@ function initStateVars() {
 			var upstreamObserver = new MutationObserver(upstreamMutationCallback);
 
 			contentState["upstreams"].push({"node":upstreamNode, "type":typeObj.name, "observer":upstreamObserver});
-
-			var upstreamCfg = {"childList":true, "attributes":false, "characterData":false, "subtree":typeObj.subtree};
-			upstreamObserver.observe(upstreamNode, upstreamCfg);
 		}
 		if (upstreamNodes.length > 0) upstreamNames.push(typeObj.name);
 	}
