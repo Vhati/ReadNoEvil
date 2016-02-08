@@ -128,6 +128,7 @@ function backgroundInit() {
  *
  * show_page_action:
  *   Displays this extension's clickable icon, in the address bar.
+ *   This must only be sent after: document.visibilityState == "visible".
  *
  * test_evilness:
  *   param {string[]} message.userIds - A list of users to check against the block_list.
@@ -204,8 +205,10 @@ chrome.runtime.onConnect.addListener(function(port) {
 			}
 			else if (message.type == "show_page_action") {
 				chrome.pageAction.show(port.sender.tab.id);
-				// No way to suppress occasional "No tab with id: ##" error in log.
-				// If there were a callback, checking chrome.runtime.lasterror would do that.
+
+				// Assume the sender had waited until the page was visible.
+				// No way to suppress potential "No tab with id: ##" error in log.
+				// If it'd had a callback, checking chrome.runtime.lastError would do that.
 			}
 			else if (message.type == "init_content") {
 				RNE.logging.info("Content init");

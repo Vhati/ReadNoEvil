@@ -384,6 +384,9 @@ function contentInit() {
 		return;
 	}
 
+	document.addEventListener("visibilitychange", deferredInit, false);
+	deferredInit();
+
 	setStylesheet("vanilla-blank.css");
 
 	initStateVars();
@@ -427,6 +430,26 @@ function contentInit() {
 	});
 	var navCfg = {"childList":true, "attributes":false, "characterData":false, "subtree":false};
 	contentState["nav_observer"].observe(navDiv, navCfg);
+}
+
+/**
+ * Runs extra init stuff only if the document is visible.
+ *
+ * Typing a url into a blank tab may result in a 'pre-rendered' page
+ * that doesn't immediately exist. The tabId will be invalid, which will
+ * break pageAction.Show() "Unchecked runtime.lastError ... No tab with id".
+ *
+ * document.visibilityState phases: prerender, hidden, visible.
+ *
+ * Registering this as an event handler, then calling it immediately, will
+ * ensure it runs - either now or after a brief delay.
+ */
+function deferredInit() {
+	if (document.visibilityState == "visible") {
+		document.removeEventListener("visibilitychange", deferredInit, false);
+
+		backgroundPort.postMessage({"type":"show_page_action"});
+	}
 }
 
 
@@ -920,7 +943,5 @@ backgroundPort.onDisconnect.addListener(function() {
 });
 
 
-
-backgroundPort.postMessage({"type":"show_page_action"});
 
 contentInit();
