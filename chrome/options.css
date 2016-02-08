@@ -6,7 +6,7 @@ fieldset {
 .flex-centered-row-container {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-around;
 }
 

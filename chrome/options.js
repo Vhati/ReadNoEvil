@@ -10,7 +10,7 @@ RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 function setStatusText(s) {
 	var statusDiv = document.getElementById("status-div");
-	statusDiv.textContent = (s != null && s != "" ? s : "\u200b");  // Unicode zer-width space.
+	statusDiv.textContent = (s != null && s != "" ? s : "\u200b");  // Unicode zero-width space.
 }
 
 

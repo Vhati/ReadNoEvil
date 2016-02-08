@@ -610,7 +610,7 @@ function fetchLimits() {
 					methodName = methodName.replace(/(:.*)/, function(x) {return x.toUpperCase();})
 					methodName = methodName.replace(/^\//, "");
 					methodName = methodName.replace(/\//, "_");
-					setLimits(rates[methodPath]);
+					setLimits(methodName, rates[methodPath]);
 
 					//RNE.logging.debug("Limit cached: "+ methodName);
 				}
@@ -802,14 +802,7 @@ function setRedactingVanilla(b, store) {
 	broadcastMessage("all", {"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 
 	if (store) {
-		chrome.storage.local.set(
-			{"redacting_vanilla":backgroundState["redacting_vanilla"]},
-			function() {
-				if (chrome.runtime.lastError) {
-					RNE.logging.warning(chrome.runtime.lastError.message);
-				}
-			}
-		);
+		setStorage({"redacting_vanilla":backgroundState["redacting_vanilla"]});
 	}
 }
 
@@ -825,14 +818,7 @@ function setRedactingTweetdeck(b, store) {
 	broadcastMessage("all", {"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 
 	if (store) {
-		chrome.storage.local.set(
-			{"redacting_tweetdeck":backgroundState["redacting_tweetdeck"]},
-			function() {
-				if (chrome.runtime.lastError) {
-					RNE.logging.warning(chrome.runtime.lastError.message);
-				}
-			}
-		);
+		setStorage({"redacting_tweetdeck":backgroundState["redacting_tweetdeck"]});
 	}
 }
 
@@ -850,14 +836,7 @@ function setRedactionStyle(value, store) {
 	broadcastMessage("all", {"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 
 	if (store) {
-		chrome.storage.local.set(
-			{"redaction_style":backgroundState["redaction_style"]},
-			function() {
-				if (chrome.runtime.lastError) {
-					RNE.logging.warning(chrome.runtime.lastError.message);
-				}
-			}
-		);
+		setStorage({"redaction_style":backgroundState["redaction_style"]});
 	}
 }
 
@@ -873,15 +852,19 @@ function setBlockListFetchInterval(days, store) {
 	broadcastMessage("options", {"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 
 	if (store) {
-		chrome.storage.local.set(
-			{"block_list_fetch_interval":backgroundState["block_list_fetch_interval"]},
-			function() {
-				if (chrome.runtime.lastError) {
-					RNE.logging.warning(chrome.runtime.lastError.message);
-				}
-			}
-		);
+		setStorage({"block_list_fetch_interval":backgroundState["block_list_fetch_interval"]});
 	}
+}
+
+function setStorage(dict) {
+	chrome.storage.local.set(
+		dict,
+		function() {
+			if (chrome.runtime.lastError) {
+				RNE.logging.warning(chrome.runtime.lastError.message);
+			}
+		}
+	);
 }
 
 /**
