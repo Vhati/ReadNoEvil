@@ -48,7 +48,7 @@ function backgroundInit() {
 			"block_list_fetch_state"
 		],
 		function(data) {
-			if (chrome.runtime.lasterror) {
+			if (chrome.runtime.lastError) {
 				throw new Error(chrome.runtime.lastError.message);
 			}
 
@@ -540,7 +540,7 @@ function submitPIN(pin) {
 				chrome.storage.local.set(
 					{"oauth_key":reply.oauth_token, "oauth_secret":reply.oauth_token_secret},
 					function() {
-						if (chrome.runtime.lasterror) {
+						if (chrome.runtime.lastError) {
 							RNE.logging.warning(chrome.runtime.lastError.message);
 						}
 					}
@@ -684,7 +684,7 @@ function fetchBlockListBackend(fetchState) {
 			chrome.storage.local.set(
 				{"block_list_fetch_state":fetchState},
 				function() {
-					if (chrome.runtime.lasterror) {
+					if (chrome.runtime.lastError) {
 						RNE.logging.warning(chrome.runtime.lastError.message);
 					} else {
 						chrome.alarms.create(Alarm.FETCH_BLOCK_LIST, {"delayInMinutes":deltaMin});
@@ -805,7 +805,7 @@ function setRedactingVanilla(b, store) {
 		chrome.storage.local.set(
 			{"redacting_vanilla":backgroundState["redacting_vanilla"]},
 			function() {
-				if (chrome.runtime.lasterror) {
+				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
 				}
 			}
@@ -828,7 +828,7 @@ function setRedactingTweetdeck(b, store) {
 		chrome.storage.local.set(
 			{"redacting_tweetdeck":backgroundState["redacting_tweetdeck"]},
 			function() {
-				if (chrome.runtime.lasterror) {
+				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
 				}
 			}
@@ -853,7 +853,7 @@ function setRedactionStyle(value, store) {
 		chrome.storage.local.set(
 			{"redaction_style":backgroundState["redaction_style"]},
 			function() {
-				if (chrome.runtime.lasterror) {
+				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
 				}
 			}
@@ -876,7 +876,7 @@ function setBlockListFetchInterval(days, store) {
 		chrome.storage.local.set(
 			{"block_list_fetch_interval":backgroundState["block_list_fetch_interval"]},
 			function() {
-				if (chrome.runtime.lasterror) {
+				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
 				}
 			}
@@ -914,7 +914,7 @@ function setBlockList(new_list, timestamp, store) {
 		chrome.storage.local.set(
 			{"block_list_timestamp":backgroundState["block_list_timestamp"], "block_list":backgroundState["block_list"]},
 			function() {
-				if (chrome.runtime.lasterror) {
+				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
 				}
 				else {
