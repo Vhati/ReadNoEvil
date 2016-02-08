@@ -51,3 +51,13 @@ article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summa
 article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summary > div.account-summary-text p.account-bio {
   visibility: hidden;
 }
+
+
+
+/* UI elements hidden as long as RNE is working properly. */
+.rne-suppressed {
+  display: none !important;
+}
+/* UI elements injected by RNE, which should be removed during panic(). */
+.rne-added {
+}

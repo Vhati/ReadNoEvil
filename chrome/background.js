@@ -42,7 +42,7 @@ function backgroundInit() {
 		[
 			"oauth_key", "oauth_secret",
 			"redacting_vanilla", "redacting_tweetdeck",
-			"redaction_style",
+			"redaction_style", "hooking_menus",
 			"block_list_fetch_interval",
 			"block_list_timestamp", "block_list",
 			"block_list_fetch_state"
@@ -60,6 +60,7 @@ function backgroundInit() {
 			var newRedactingVanilla = (data.redacting_vanilla != null ? data.redacting_vanilla : true);
 			var newRedactingTweetdeck = (data.redacting_tweetdeck != null ? data.redacting_tweetdeck : true);
 			var newRedactionStyle = (["blank", "faded"].indexOf(data.redaction_style) != -1 ? data.redaction_style : "blank" );
+			var newHookingMenus = (data.hooking_menus != null ? data.hooking_menus : false);
 
 			if (data.block_list) {
 				newBlockList = data.block_list;
@@ -82,6 +83,7 @@ function backgroundInit() {
 			setRedactingVanilla(newRedactingVanilla, false);
 			setRedactingTweetdeck(newRedactingTweetdeck, false);
 			setRedactionStyle(newRedactionStyle, false);
+			setHookingMenus(newHookingMenus, false);
 			setBlockListFetchInterval(newFetchInterval, false);
 			setBlockList(newBlockList, newBlockListStamp, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
@@ -217,6 +219,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
+				port.postMessage({"type":"set_hooking_menus", "value":backgroundState["hooking_menus"]});
 			}
 			else if (message.type == "test_evilness") {
 				//RNE.logging.debug("Testing evilness: "+ message.userIds.join());
@@ -228,12 +231,19 @@ chrome.runtime.onConnect.addListener(function(port) {
 				}
 				port.postMessage({"type":"evilness_result", "value":results});
 			}
+			else if (message.type == "request_block") {
+				requestBlock(message.user_id, message.screen_name);
+			}
+			else if (message.type == "request_unblock") {
+				requestUnblock(message.user_id, message.screen_name);
+			}
 			else if (message.type == "init_options") {
 				RNE.logging.info("Options init");
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
 				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
+				port.postMessage({"type":"set_hooking_menus", "value":backgroundState["hooking_menus"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
@@ -245,6 +255,11 @@ chrome.runtime.onConnect.addListener(function(port) {
 				if (message.value != backgroundState["redaction_style"]) {
 					setRedactionStyle(message.value, true);
 				}
+			}
+			else if (message.type == "set_hooking_menus") {
+				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+
+				setHookingMenus(Boolean(message.value), true);
 			}
 			else if (message.type == "verify_twitter_credentials") {
 				verifyCredentials(function(reply, err) {
@@ -550,6 +565,75 @@ function submitPIN(pin) {
 
 
 /**
+ * Sends a block request to Twitter and announces the result.
+ *
+ * According to BlockTogether's source, "actions.js" says:
+ * "Note that the block endpoint can only block one user at a time,
+ * but it does not appear to have a rate limit."
+ *
+ * https://github.com/jsha/blocktogether/blob/7a19c7761022e585fc46d04ff443aba28b394bb4/actions.js#L74
+ */
+function requestBlock(userId, screenName) {
+	if (!userId) return;
+	if (typeof screenName === "undefined") screenName = null;
+
+	RNE.logging.info("Requesting block"+ (screenName ? " for @"+ screenName : "") +" (userId: "+ userId +")");
+	twitterCall(
+		"blocks_create",
+		{"user_id":userId},
+		function(reply, rate, err) {
+			if (err) {
+				var errorMsg = "Block failed"+ (screenName ? " for @"+ screenName : "") +" (userId: "+ userId +"): "+ err.error;
+				RNE.logging.error(errorMsg);
+				announceStatus(errorMsg, "error", true);
+				broadcastMessage("content", {"type":"toast", "style":"error", "text":errorMsg});
+
+				return;
+			}
+			if (reply) {
+				var successMsg = "Blocked"+ (screenName ? " @"+ screenName : "");
+				RNE.logging.info(successMsg);
+				announceStatus(successMsg, "notice", false);
+				broadcastMessage("content", {"type":"toast", "style":"success", "text":successMsg});
+
+				addBlockedUserId(userId);
+			}
+		}
+	);
+}
+
+function requestUnblock(userId, screenName) {
+	if (!userId) return;
+	if (typeof screenName === "undefined") screenName = null;
+
+	RNE.logging.info("Requesting unblock"+ (screenName ? " for @"+ screenName : "") +" (userId: "+ userId +")");
+	twitterCall(
+		"blocks_destroy",
+		{"user_id":userId, "include_entities":"false", "skip_status":"true"},
+		function(reply, rate, err) {
+			if (err) {
+				var errorMsg = "Unblock failed"+ (screenName ? " for @"+ screenName : "") +" (userId: "+ userId +", ): "+ err.error;
+				RNE.logging.error(errorMsg);
+				announceStatus(errorMsg, "error", true);
+				broadcastMessage("content", {"type":"toast", "style":"error", "text":errorMsg});
+
+				return;
+			}
+			if (reply) {
+				var successMsg = "Unblocked"+ (screenName ? " @"+ screenName : "");
+				RNE.logging.info(successMsg);
+				announceStatus(successMsg, "notice", false);
+				broadcastMessage("content", {"type":"toast", "style":"success", "text":successMsg});
+
+				removeBlockedUserId(userId);
+			}
+		}
+	);
+}
+
+
+
+/**
  * Calls a Twitter API method, caching rate limit info from the reply.
  *
  * @param {string} methodName - A codebird method name.
@@ -841,6 +925,22 @@ function setRedactionStyle(value, store) {
 }
 
 /**
+ * Toggles menu hooking and notifies other scripts.
+ *
+ * @param {Boolean} b - The new hooking menus state.
+ * @param {Boolean} store - True to set localstorage, false otherwise.
+ */
+function setHookingMenus(b, store) {
+	backgroundState["hooking_menus"] = Boolean(b);
+
+	broadcastMessage("all", {"type":"set_hooking_menus", "value":backgroundState["hooking_menus"]});
+
+	if (store) {
+		setStorage({"hooking_menus":backgroundState["hooking_menus"]});
+	}
+}
+
+/**
  * Sets the age at which the block list needs updating and notifies other scripts.
  *
  * @param {Number} days - A positive integer, or 0 to disable.
@@ -918,6 +1018,42 @@ function fetchDummyBlockList() {
 	setBlockList(["0987654321","12345678"], null);
 }
 
+/**
+ * Adds a userId to the block list, notifies other scripts, and stores the list.
+ */
+function addBlockedUserId(userId) {
+	if (!userId || backgroundState["block_list"].indexOf(userId) != -1) return;
+
+	backgroundState["block_list"].push(userId);
+
+	var evilnessResults = {};
+	evilnessResults[userId] = true;  // Just added, definitely evil.
+
+	broadcastMessage("content", {"type":"evilness_result", "value":evilnessResults});
+
+	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+	setStorage({"block_list":backgroundState["block_list"]});
+}
+
+/**
+ * Removes a userId from the block list, notifies other scripts, and stores the list.
+ */
+function removeBlockedUserId(userId) {
+	if (!userId) return;
+	var index = backgroundState["block_list"].indexOf(userId);
+	if (index == -1) return;
+
+	backgroundState["block_list"].splice(index, 1);
+
+	var evilnessResults = {};
+	evilnessResults[userId] = false;  // Just removed, definitely not evil.
+
+	broadcastMessage("content", {"type":"evilness_result", "value":evilnessResults});
+
+	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+	setStorage({"block_list":backgroundState["block_list"]});
+}
+
 
 
 var codebird = new Codebird();
@@ -930,6 +1066,7 @@ backgroundState["redact_all"] = false;
 backgroundState["redacting_vanilla"] = false;
 backgroundState["redacting_tweetdeck"] = false;
 backgroundState["redaction_style"] = "blank";
+backgroundState["hooking_menus"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();
 backgroundState["block_list"] = [];

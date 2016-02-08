@@ -54,12 +54,29 @@ ItemType.TWEET = {
 
 	dredgeSelector: "article.stream-item",
 
+	_getEllipsisLink: function(node) {
+		return node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer a.tweet-action[rel='actionsMenu'][data-user-id]");
+	},
+
+	_getPrimaryUserId: function(node) {
+		var ellipsisLink = this._getEllipsisLink(node);
+		return (ellipsisLink != null ? ellipsisLink.getAttribute("data-user-id") : null) || null;
+	},
+
+	_getScreenName: function(node) {
+		var nameSpan = node.querySelector(":scope > div.item-box div.tweet > header.tweet-header span.username");
+		return (nameSpan != null ? nameSpan.textContent.replace(/@/, "") : null) || null;
+	},
+
 	testNode: function(node) {
 		// In notifications columns, div.tweet is often wrapped in span.txt-mute.
 
 		if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
-			var tweetEllipsisAnchor = node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
-			if (tweetEllipsisAnchor) return true;
+
+			if (this._getEllipsisLink(node) == null) return false;
+			if (this._getScreenName(node) == null) return false;
+
+			return true;
 		}
 		return false;
 	},
@@ -68,20 +85,14 @@ ItemType.TWEET = {
 		var primaryUserId = null;
 		userIds = [];
 
-		var origTweetDiv = node.querySelector(":scope > div.item-box div.tweet");
-		if (origTweetDiv != null) {
-			var origEllipsisAnchor = origTweetDiv.querySelector(":scope > div.tweet-body > footer.tweet-footer > ul.tweet-actions > li.tweet-action-item > a.tweet-action[data-user-id]");
-			if (origEllipsisAnchor != null) {
-				var userId = origEllipsisAnchor.getAttribute("data-user-id");
-				if (userId) {
-					primaryUserId = ""+ userId;
-					userIds.push(""+ userId);
-				}
-			}
-
-			// Quoted tweets have no userId. :/
-			//var quoteTweetDiv = origTweetDiv.querySelector(":scope > div.tweet-body > div.quoted-tweet");
+		var userId = this._getPrimaryUserId(node);
+		if (userId) {
+			primaryUserId = userId;
+			userIds.push(userId);
 		}
+
+		// Quoted tweets have no userId. :/
+		//var quoteTweetDiv = node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > div.quoted-tweet");
 
 		return {"primaryUserId":primaryUserId, "userIds":userIds};
 	},
@@ -89,6 +100,50 @@ ItemType.TWEET = {
 	setRedacted: function(node, b) {
 		var methodName = (b ? "add" : "remove");
 		node.classList[methodName]("rne-tweetdeck-tweet-redacted");
+	},
+
+	/**
+	 * Returns true if a given element is the ellipsis link that triggers the dropdown menu.
+	 *
+	 * @param {HTMLElement} itemNode
+	 * @param {HTMLElement} candidateNode
+	 */
+	testMenu: function(itemNode, candidateNode) {
+		var ellipsisLink = this._getEllipsisLink(itemNode);
+		var menuDiv = ellipsisLink.parentElement.querySelector(":scope > div.js-dropdown");
+		return (menuDiv === candidateNode);
+	},
+
+	decorateMenu: function(itemNode) {
+		// The dropdown menu's content is short-lived. No need to undecorate later.
+
+		// The ellipsis link and dropdown menu are siblings. Go up a level.
+		var ellipsisLink = this._getEllipsisLink(itemNode);
+		var menuParentNode = ellipsisLink.parentElement;
+
+		// Tweets you wrote have no 'Block'.
+		var nativeBlockLink = menuParentNode.querySelector("li.is-selectable > a[data-action='block']");
+		if (nativeBlockLink != null) {
+			var nativeBlockWrapper = nativeBlockLink.parentElement;
+			var menuActionsList = nativeBlockWrapper.parentElement;
+
+			if (!menuActionsList.classList.contains("rne-decorated")) {
+				menuActionsList.classList.add("rne-decorated");
+
+				nativeBlockWrapper.classList.add("rne-suppressed");
+				var userId = this._getPrimaryUserId(itemNode);
+				var screenName = this._getScreenName(itemNode);
+
+				var newNodes = [];
+				var blockTree = menubuilder.createBlockMenuItem(userId, screenName);
+				newNodes.push(blockTree.root);
+
+				var unblockTree = menubuilder.createUnblockMenuItem(userId, screenName);
+				newNodes.push(unblockTree.root);
+
+				menubuilder.insertSiblingsAfter(nativeBlockWrapper, newNodes);
+			}
+		}
 	}
 };
 
@@ -97,10 +152,27 @@ ItemType.ACCOUNT_ACTIVITY = {  // Account event (e.g., someone's new follower).
 
 	dredgeSelector: "article.stream-item",
 
+	_getAcctActionsBtn: function(node) {
+		return node.querySelector(":scope > div.item-box div.account-summary > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
+	},
+
+	_getPrimaryUserId: function(node) {
+		var acctActionsBtn = this._getAcctActionsBtn(node);
+		return (acctActionsBtn != null ? acctActionsBtn.getAttribute("data-user-id") : null) || null;
+	},
+
+	_getScreenName: function(node) {
+		var nameLink = node.querySelector(":scope > div.item-box div.account-summary > div.account-summary-text a.account-link[data-user-name]");
+		return (nameLink != null ? nameLink.getAttribute("data-user-name") : null) || null;
+	},
+
 	testNode: function(node) {
 		if (node.nodeName.match(/\barticle\b/i) && node.classList.contains("stream-item")) {
-			var acctActionsBtn = node.querySelector(":scope > div.item-box div.account-summary > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
-			if (acctActionsBtn) return true;
+
+			if (this._getAcctActionsBtn(node) == null) return false;
+			if (this._getScreenName(node) == null) return false;
+
+			return true;
 		}
 		return false;
 	},
@@ -109,17 +181,10 @@ ItemType.ACCOUNT_ACTIVITY = {  // Account event (e.g., someone's new follower).
 		var primaryUserId = null;
 		userIds = [];
 
-		var acctDiv = node.querySelector(":scope > div.item-box div.account-summary");
-		if (acctDiv != null) {
-			var acctActionsBtn = acctDiv.querySelector(":scope > div.with-dropdown > button.js-user-actions-menu[data-user-id]");
-			if (acctActionsBtn != null) {
-				var userId = acctActionsBtn.getAttribute("data-user-id");
-				if (userId) {
-					primaryUserId = ""+ userId;
-					userIds.push(""+ userId);
-				}
-
-			}
+		var userId = this._getPrimaryUserId(node);
+		if (userId) {
+			primaryUserId = userId;
+			userIds.push(userId);
 		}
 
 		return {"primaryUserId":primaryUserId, "userIds":userIds};
@@ -128,8 +193,124 @@ ItemType.ACCOUNT_ACTIVITY = {  // Account event (e.g., someone's new follower).
 	setRedacted: function(node, b) {
 		var methodName = (b ? "add" : "remove");
 		node.classList[methodName]("rne-tweetdeck-account-activity-redacted");
+	},
+
+	testMenu: function(itemNode, candidateNode) {
+		var acctActionsBtn = this._getAcctActionsBtn(node);
+		var menuDiv = acctActionsBtn.parentElement.querySelector(":scope > div.js-dropdown");
+		return (menuDiv === candidateNode);
+	},
+
+	decorateMenu: function(itemNode) {
+		// The dropdown menu's content is short-lived. No need to undecorate later.
+
+		// The ellipsis link and dropdown menu are siblings. Go up a level.
+		var acctActionsBtn = this._getAcctActionsBtn(itemNode);
+		var menuParentNode = acctActionsBtn.parentElement;
+
+		var nativeBlockLink = menuParentNode.querySelector("li.is-selectable > a[data-action='block']");
+		if (nativeBlockLink != null) {
+			var nativeBlockWrapper = nativeBlockLink.parentElement;
+			var menuActionsList = nativeBlockWrapper.parentElement;
+
+			if (!menuActionsList.classList.contains("rne-decorated")) {
+				menuActionsList.classList.add("rne-decorated");
+
+				nativeBlockWrapper.classList.add("rne-suppressed");
+				var userId = this._getPrimaryUserId(itemNode);
+				var screenName = this._getScreenName(itemNode);
+
+				var newNodes = [];
+				var blockTree = menubuilder.createBlockMenuItem(userId, screenName);
+				newNodes.push(blockTree.root);
+
+				var unblockTree = menubuilder.createUnblockMenuItem(userId, screenName);
+				newNodes.push(unblockTree.root);
+
+				menubuilder.insertSiblingsAfter(nativeBlockWrapper, newNodes);
+			}
+		}
 	}
 };
+
+
+
+menubuilder = {
+	_toggleSelected: function(e) {
+		e.target.classList[e.type == "mouseover" ? "add" : "remove"]("is-selected");
+	},
+
+	createMenuItem: function() {
+		var wrapper = document.createElement("li");
+		wrapper.classList.add("rne-added");
+		wrapper.classList.add("is-selectable");
+		wrapper.addEventListener("mouseover", this._toggleSelected);
+		wrapper.addEventListener("mouseout", this._toggleSelected);
+
+		link = document.createElement("a");
+		link.href = "#";
+		link.setAttribute("data-action", "nop");  // Dummy attribute to qualify for native style.
+		wrapper.appendChild(link);
+
+		return {"root":wrapper, "link":link};
+	},
+
+	createBlockMenuItem: function(userId, screenName) {
+		var blockTree = this.createMenuItem();
+		blockTree.link.textContent = "Block"+ (screenName ? " @"+ screenName : "") +" in RNE";
+		blockTree.link.setAttribute("data-rne-action", "block");
+		blockTree.link.setAttribute("data-user-id", userId);
+		if (screenName) blockTree.link.setAttribute("data-user-name", screenName);
+		return blockTree;
+	},
+
+	createUnblockMenuItem: function(userId, screenName) {
+		var unblockTree = this.createMenuItem();
+		unblockTree.link.textContent = "Unblock"+ (screenName ? " @"+ screenName : "") +" in RNE";
+		unblockTree.link.setAttribute("data-rne-action", "unblock");
+		unblockTree.link.setAttribute("data-user-id", userId);
+		if (screenName) unblockTree.link.setAttribute("data-user-name", screenName);
+		return unblockTree;
+	},
+
+	/**
+	 * Inserts a list of new nodes into a parent after an existing reference point.
+	 *
+	 * @param {HTMLElement} refNode
+	 * @param {HTMLElement[]} newNodes
+	 */
+	insertSiblingsAfter: function(refNode, newNodes) {
+		for (var i=newNodes.length-1; i >= 0; i--) {
+			refNode.parentElement.insertBefore(newNodes[i], refNode.nextSibling);
+		}
+	}
+};
+
+
+
+function injectedMenuHandler(e) {
+	if (e.type != "click") return;
+
+	var rneAction = e.target.getAttribute("data-rne-action");
+	if (!rneAction) return;
+
+	if (rneAction == "block" || rneAction == "unblock") {
+		var userId = e.target.getAttribute("data-user-id") || null;        // This null is bad.
+		var screenName = e.target.getAttribute("data-user-name") || null;  // This null will be tolerated.
+
+		if (userId) {
+			if (rneAction == "block") {
+				backgroundPort.postMessage({"type":"request_block", "user_id":userId, "screen_name":screenName});
+			} else {
+				backgroundPort.postMessage({"type":"request_unblock", "user_id":userId, "screen_name":screenName});
+			}
+		}
+		else {
+			toastr.error("Nothing happened. The id for "+ (screenName ? "@"+ screenName : "that user") +" could not be determined.", "", {"timeOut":"6000"});
+		}
+	}
+	e.stopPropagation();
+}
 
 
 
@@ -187,16 +368,36 @@ function streamMutationCallback(mutations) {
 			for (var i=0; i < mutation.addedNodes.length; i++) {
 				var addedNode = mutation.addedNodes[i];
 
-				var dredgedItems = dredgeInterestingItems(addedNode);
+				if (contentState["hooking_menus"] && addedNode.classList && addedNode.classList.contains("js-dropdown")) {
+					var typeObjs = [ItemType.TWEET, ItemType.ACCOUNT_ACTIVITY];
 
-				for (var j=0; j < dredgedItems.length; j++) {
-					var dredgedItem = dredgedItems[j];
+					var ancestorNode = addedNode.parentElement;
+					while (ancestorNode != null) {
+						var decorated = false;
+						for (var j=0; j < typeObjs.length; j++) {
+							if (typeObjs[j].testNode(ancestorNode)) {
+								typeObjs[j].decorateMenu(ancestorNode);
+								decorated = true;
+								break;
+							}
+						}
+						if (decorated) break;
 
-					var itemInfo = registerItem(dredgedItem.node, dredgedItem.type);
+						ancestorNode = ancestorNode.parentElement;
+					}
+				}
+				else {
+					var dredgedItems = dredgeInterestingItems(addedNode);
 
-					// Redact if a user is already known to be evil (or redact_all).
-					if (itemInfo != null && (contentState["redact_all"] || isItemTainted(itemInfo))) {
-						setItemRedacted(itemInfo, true);
+					for (var j=0; j < dredgedItems.length; j++) {
+						var dredgedItem = dredgedItems[j];
+
+						var itemInfo = registerItem(dredgedItem.node, dredgedItem.type);
+
+						// Redact if a user is already known to be evil (or redact_all).
+						if (itemInfo != null && (contentState["redact_all"] || isItemTainted(itemInfo))) {
+							setItemRedacted(itemInfo, true);
+						}
 					}
 				}
 			}
@@ -331,6 +532,8 @@ function dredgeInterestingItems(node) {
  * Tries to get this script into an inert state, in case of emergency.
  */
 function panic() {
+	document.documentElement.removeEventListener("click", injectedMenuHandler);
+
 	for (var i=0; i < contentState["upstreams"].length; i++) {
 		var upstreamInfo = contentState["upstreams"][i];
 		upstreamInfo.observer.disconnect();
@@ -344,6 +547,13 @@ function panic() {
 
 	if (contentState["app_observer"]) {
 		contentState["app_observer"].disconnect();
+	}
+
+	// Remove all injected nodes.
+	var injectedNodes = document.querySelectorAll(".rne-added");
+	for (var i=0; i < injectedNodes.length; i++) {
+		var injectedNode = injectedNodes[i];
+		if (injectedNode.parentElement) injectedNode.parentElement.removeChild(injectedNode);
 	}
 }
 
@@ -882,6 +1092,7 @@ function setStylesheet(cssFile) {
 var contentState = {};
 contentState["redact_all"] = false;
 contentState["redacting"] = false;
+contentState["hooking_menus"] = false;
 contentState["app_observer"] = null;
 contentState["upstreams"] = [];  // List of {node:HTMLElement, type:string, observer:MutationObserver}
 contentState["streams"] = [];    // List of {node:HTMLElement, type:string, observer:MutationObserver}
@@ -946,6 +1157,15 @@ backgroundPort.onMessage.addListener(
 			var cssFiles = {"blank":"tweetdeck-blank.css", "faded":"tweetdeck-faded.css"};
 			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
 			setStylesheet(cssFile);
+		}
+		else if (message.type == "set_hooking_menus") {
+			RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+			var b = Boolean(message.value);
+			contentState["hooking_menus"] = b;
+
+			var methodName = (b ? "addEventListener" : "removeEventListener");
+			document.documentElement[methodName]("click", injectedMenuHandler);
+			// TODO: Scour the DOM to undo injected/suppressed elements.
 		}
 		else if (message.type == "toast") {
 			if (message.style == "error") {

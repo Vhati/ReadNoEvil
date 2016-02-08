@@ -99,6 +99,7 @@ var optionsState = {};
 optionsState["redacting_vanilla_box"] = null;
 optionsState["redacting_tweetdeck_box"] = null;
 optionsState["redaction_style_combo"] = null;
+optionsState["hooking_menus_box"] = null;
 optionsState["request_pin_btn"] = null;
 optionsState["pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
@@ -129,6 +130,10 @@ backgroundPort.onMessage.addListener(
 			} else {
 				RNE.logging.warning("Options page has no option for redaction style: "+ message.value);
 			}
+		}
+		else if (message.type == "set_hooking_menus") {
+			var b = Boolean(message.value);
+			optionsState["hooking_menus_box"].checked = b;
 		}
 		else if (message.type == "set_block_list_fetch_interval") {
 			setTimedField("fetch_interval_field", message.value);
@@ -166,6 +171,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	optionsState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
 	optionsState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
 	optionsState["redaction_style_combo"] = document.getElementById("redaction-style-combo");
+	optionsState["hooking_menus_box"] = document.getElementById("hooking-menus-box");
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
 	optionsState["pin_field"] = document.getElementById("pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
@@ -184,6 +190,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	optionsState["redaction_style_combo"].addEventListener("change", function() {
 		backgroundPort.postMessage({"type":"set_redaction_style", "value":optionsState["redaction_style_combo"].value});
+	});
+
+	optionsState["hooking_menus_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_hooking_menus", "value":Boolean(optionsState["hooking_menus_box"].checked)});
 	});
 
 	optionsState["request_pin_btn"].addEventListener("click", function() {
