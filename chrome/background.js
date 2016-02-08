@@ -213,6 +213,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 			else if (message.type == "init_content") {
 				RNE.logging.info("Content init");
 
+				port.postMessage({"type":"set_redact_all", "value":backgroundState["redact_all"]});
 				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
@@ -223,11 +224,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				for (var i=0; i < message.userIds.length; i++) {
 					var userId = message.userIds[i];
 
-					if (backgroundState["redact_all"]) {
-						results[userId] = true;
-					} else {
-						results[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
-					}
+					results[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
 				}
 				port.postMessage({"type":"evilness_result", "value":results});
 			}
@@ -296,8 +293,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 
 				backgroundState["redact_all"] = Boolean(message.value);
-				broadcastMessage("popup", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
-				broadcastMessage("content", {"type":"reset_evilness"});
+				broadcastMessage("all", {"type":"set_redact_all", "value":backgroundState["redact_all"]});
 			}
 			else if (message.type == "open_options_page") {
 				RNE.logging.debug("Message received: "+ message.type);
@@ -487,8 +483,6 @@ function verifyCredentials(callback) {
 	);
 }
 
-
-
 /**
  * Opens a new tab with a PIN that the user should copy + paste.
  *
@@ -573,7 +567,7 @@ function twitterCall(methodName, params, callback) {
 			}
 
 			// It's possible for rate to be defined, but with null values.
-			// If non-string args are passed to __call(), oauth breaks, and reply.errors will exist.
+			// If non-string boolean args are passed to __call(), oauth breaks, and reply.errors will exist.
 			//
 			//   https://github.com/jublonet/codebird-js/issues/115
 			//
@@ -706,12 +700,15 @@ function fetchBlockListBackend(fetchState) {
 		{"cursor":fetchState["next_cursor_str"], "stringify_ids":"true"},
 		function(reply, rate, err) {
 			if (err) {                                                 // Normally undefined.
-				RNE.logging.warning("Block list fetch error: "+ err.error);        // Twitter complained or socket timeout.
-				announceStatus("Error fetching block list: "+ err.error, "error", true);
 				fetchState["doomed"] = true;
 				if (backgroundState["block_list_fetch_state"] == fetchState) {
 					backgroundState["block_list_fetch_state"] = null;
 				}
+				RNE.logging.warning("Block list fetch error: "+ err.error);  // Twitter complained or socket timeout.
+
+				var errorMsg = "Error fetching block list: "+ err.error;
+				announceStatus(errorMsg, "error", true);
+				broadcastMessage("content", {"type":"toast", "style":"error", "text":errorMsg});
 			}
 
 			if (fetchState["doomed"]) return;
@@ -946,10 +943,10 @@ var consumerSecret = "Zkmlr1W3F4SQUMjcHNsuhL03FzSC9lhe9ZNJGMRYUpsnL4A14v";
 codebird.setConsumerKey(consumerKey, consumerSecret);
 
 var backgroundState = {};
+backgroundState["redact_all"] = false;
 backgroundState["redacting_vanilla"] = false;
 backgroundState["redacting_tweetdeck"] = false;
 backgroundState["redaction_style"] = "blank";
-backgroundState["redact_all"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();
 backgroundState["block_list"] = [];

@@ -148,7 +148,7 @@ function upstreamMutationCallback(mutations) {
 					var dredgedStream = dredgedStreams[j];
 
 					var streamInfo = registerStream(dredgedStream.node, dredgedStream.type);
-					setStreamRedacted(streamInfo, true);
+					updateAllItemsRedaction({"streamInfo":streamInfo});
 				}
 			}
 		}
@@ -165,7 +165,7 @@ function upstreamMutationCallback(mutations) {
 
 					if (streamInfo != null) {
 						streamInfo.observer.disconnect();
-						setStreamRedacted(streamInfo, false);
+						clearAllItemsRedaction({"streamInfo":streamInfo});
 						unregisterStream(streamInfo);
 					}
 				}
@@ -194,8 +194,8 @@ function streamMutationCallback(mutations) {
 
 					var itemInfo = registerItem(dredgedItem.node, dredgedItem.type);
 
-					// Redact if a user is already known to be evil.
-					if (itemInfo != null && isItemTainted(itemInfo)) {
+					// Redact if a user is already known to be evil (or redact_all).
+					if (itemInfo != null && (contentState["redact_all"] || isItemTainted(itemInfo))) {
 						setItemRedacted(itemInfo, true);
 					}
 				}
@@ -338,7 +338,7 @@ function panic() {
 	contentState["upstreams"] = [];
 
 	setRedacting(false);
-	setAllItemsRedacted(false);
+	clearAllItemsRedaction(null);
 	unregisterAllStreams();
 	contentState["streams"] = [];
 
@@ -435,7 +435,7 @@ function contentInit() {
 		if (pageChanged) {
 			if (contentState["upstreams"].length > 0) {
 				setRedacting(false);
-				setAllItemsRedacted(false);
+				clearAllItemsRedaction(null);
 				unregisterAllStreams();
 			}
 			initStateVars();
@@ -710,23 +710,6 @@ function getItemUsers(node, itemType) {
 }
 
 /**
- * Calls setItemRedacted(itemInfo, true) on all stream-items involving a given user.
- *
- * @param {string} userId - The user.
- */
-function redactUser(userId) {
-	var count = 0;
-	for (var i=0; i < contentState["items"].length; i++) {
-		var itemInfo = contentState["items"][i];
-		if (itemInfo.userIds.indexOf(userId) != -1) {
-			count++;
-			setItemRedacted(itemInfo, true);
-		}
-	}
-	//RNE.logging.debug("Redacted a user id "+ userId +" (count: "+ count +")");
-}
-
-/**
  * Returns true if a given stream-item involves a blocked user.
  *
  * @param {Object} itemInfo - Cached stream-item info.
@@ -739,10 +722,8 @@ function isItemTainted(itemInfo) {
 	for (var i=0; i < userIds.length; i++) {
 		var userId = userIds[i];
 		evilness = getUserEvilness(userId);
-		if (evilness) {
-			//RNE.logging.debug("Found a naughty user id "+ userId);
-			break;
-		}
+
+		if (evilness) break;
 	}
 	return evilness;
 }
@@ -760,35 +741,43 @@ function setItemRedacted(itemInfo, b) {
 }
 
 /**
- * Sets or clears the redaction of all registered stream-items.
+ * Calls setItemRedacted on all stream-items to match users' evilness (or redact all).
  *
- * Only the stream-items involving evil users will actually be redacted.
+ * An optional filter will limit the affected items.
  *
- * @param {Boolean} b - True to redact, false to un-redact
+ * @param {Object} [filter] - {[userId]:string, [streamInfo]:Object}.
  */
-function setAllItemsRedacted(b) {
+function updateAllItemsRedaction(filter) {
 	for (var i=0; i < contentState["items"].length; i++) {
 		var itemInfo = contentState["items"][i];
 
-		setItemRedacted(itemInfo, (b && isItemTainted(itemInfo)));
+		if (filter) {
+			if (filter.userId && itemInfo.userIds.indexOf(filter.userId) == -1) continue;
+			if (filter.streamInfo && !filter.streamInfo.node.contains(itemInfo.node)) continue;
+		}
+
+		var b = (contentState["redact_all"] || isItemTainted(itemInfo));
+		setItemRedacted(itemInfo, b);
 	}
 }
 
 /**
- * Sets or clears the redaction of registered stream-items within a given stream.
+ * Clears the redaction of all registered stream-items.
  *
- * Only the stream-items involving evil users will actually be redacted.
+ * An optional filter will limit the affected items.
  *
- * @param {Object} streamInfo - Cached stream info.
- * @param {Boolean} b - True to redact, false to un-redact
+ * @param {Object} [filter] - {[userId]:string, [streamInfo]:Object}.
  */
-function setStreamRedacted(streamInfo, b) {
+function clearAllItemsRedaction(filter) {
 	for (var i=0; i < contentState["items"].length; i++) {
 		var itemInfo = contentState["items"][i];
 
-		if (streamInfo.node.contains(itemInfo.node)) {
-			setItemRedacted(itemInfo, (b && isItemTainted(itemInfo)));
+		if (filter) {
+			if (filter.userId && itemInfo.userIds.indexOf(filter.userId) == -1) continue;
+			if (filter.streamInfo && !filter.streamInfo.node.contains(itemInfo.node)) continue;
 		}
+
+		setItemRedacted(itemInfo, false);
 	}
 }
 
@@ -813,7 +802,8 @@ function registerAllStreams() {
 /**
  * Discards all cached stream and stream-item info.
  *
- * Stream-items' redaction status will be unaffected. Call setAllItemsRedacted(false) beforehand!
+ * Stream-items' redaction status will be unaffected.
+ * Call clearAllItemsRedaction(null) beforehand!
  */
 function unregisterAllStreams() {
 	//RNE.logging.debug("Unregistering all streams");  // TODO: Remove me.
@@ -890,6 +880,7 @@ function setStylesheet(cssFile) {
 
 
 var contentState = {};
+contentState["redact_all"] = false;
 contentState["redacting"] = false;
 contentState["app_observer"] = null;
 contentState["upstreams"] = [];  // List of {node:HTMLElement, type:string, observer:MutationObserver}
@@ -908,7 +899,7 @@ backgroundPort.onMessage.addListener(
 		if (message.type == "reset_evilness") {
 			RNE.logging.debug("Message received: "+ message.type);
 			resetUsersEvilness();
-			setAllItemsRedacted(false);
+			clearAllItemsRedaction(null);
 
 			var userIds = getRegisteredUsers();
 			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
@@ -921,7 +912,17 @@ backgroundPort.onMessage.addListener(
 				var userId = key;
 				var evilness = message.value[key];
 				setUserEvilness(userId, evilness);
-				if (evilness) redactUser(userId);
+				updateAllItemsRedaction({"userId":userId});
+			}
+		}
+		else if (message.type == "set_redact_all") {
+			RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+			var b = Boolean(message.value);
+
+			if (b != contentState["redact_all"]) {
+				contentState["redact_all"] = b;
+
+				updateAllItemsRedaction(null);
 			}
 		}
 		else if (message.type == "set_redacting_tweetdeck") {
@@ -931,11 +932,11 @@ backgroundPort.onMessage.addListener(
 				// Monitor if not already doing so and redact.
 				setRedacting(true);
 				registerAllStreams();
-				setAllItemsRedacted(true);
+				updateAllItemsRedaction(null);
 			} else if (b == false) {
 				// Stop monitoring and clear redaction.
 				setRedacting(false);
-				setAllItemsRedacted(false);
+				clearAllItemsRedaction(null);
 				unregisterAllStreams();
 			}
 		}
