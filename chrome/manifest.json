@@ -15,12 +15,14 @@
   "content_scripts": [
     {
       "matches": ["https://tweetdeck.twitter.com/*"],
-      "js": ["rne-logging.js", "rne-dialog.js", "content-tweetdeck.js"],
+      "css": ["toastr.css"],
+      "js": ["jquery-1.12.0.min.js", "toastr.js", "rne-logging.js", "rne-dialog.js", "content-tweetdeck.js"],
       "run_at": "document_end"
     },
     {
       "matches": ["https://twitter.com/*"],
-      "js": ["rne-logging.js", "rne-dialog.js", "content-vanilla.js"],
+      "css": ["toastr.css"],
+      "js": ["jquery-1.12.0.min.js", "toastr.js", "rne-logging.js", "rne-dialog.js", "content-vanilla.js"],
       "run_at": "document_end"
     }
   ],
@@ -45,6 +47,7 @@
     "vanilla-blank.css",
     "tweetdeck-faded.css",
     "vanilla-faded.css",
+    "toastr.css",
     "icon19.png"
   ],
   "permissions": [

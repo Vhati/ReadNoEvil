@@ -1,6 +1,17 @@
 RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
+
+toastr.options.showDuration = "150";
+toastr.options.hideDuration = "300";
+toastr.options.showEasing = "linear";
+toastr.options.hideEasing = "linear";
+toastr.options.positionClass = "toast-bottom-right";
+toastr.options.escapeHtml = true;
+toastr.options.timeOut = "2500";
+
+
+
 var UpstreamType = {};
 
 UpstreamType.TIMELINE = {
@@ -925,6 +936,15 @@ backgroundPort.onMessage.addListener(
 			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
 			setStylesheet(cssFile);
 		}
+		else if (message.type == "toast") {
+			if (message.style == "error") {
+				toastr.error(message.text, "", {"timeOut":"6000"});
+			} else if (message.style == "info") {
+				toastr.info(message.text);
+			} else {
+				toastr.success(message.text);
+			}
+		}
 	}
 );
 
@@ -932,12 +952,15 @@ backgroundPort.onMessage.addListener(
 backgroundPort.onDisconnect.addListener(function() {
 	RNE.logging.warning("Connection lost to background script! The page needs reloading.");
 
-	RNE.dialog.showMessageBox("ReadNoEvil - Error", "max-content",
-		[
-			"ReadNoEvil stopped running while it had a script injected here.",
-			"Until this page is reloaded, it may be unstable."
-		]
-	);
+	var message = "ReadNoEvil stopped running while it had a script injected here.<br/><br/>";
+	message += "Until this page is reloaded, it may be unstable."
+
+	var optionsOverride = {
+		positionClass: "toast-top-right",
+		escapeHtml: false,
+		timeOut: "0"
+	}
+	toastr.error(message, "", optionsOverride);
 
 	panic();
 });
