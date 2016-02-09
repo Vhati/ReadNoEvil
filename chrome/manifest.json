@@ -1,7 +1,7 @@
 {
   "name": "ReadNoEvil",
   "description": "Prune Twitter/Tweetdeck streams to omit users you've blocked.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "homepage_url": "https://github.com/Vhati/ReadNoEvil",
 
   "minimum_chrome_version": "40",

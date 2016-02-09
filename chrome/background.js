@@ -42,7 +42,8 @@ function backgroundInit() {
 		[
 			"oauth_key", "oauth_secret",
 			"redacting_vanilla", "redacting_tweetdeck",
-			"redaction_style", "hooking_menus",
+			"observing_you_block", "hooking_menus",
+			"redaction_style",
 			"block_list_fetch_interval",
 			"block_list_timestamp", "block_list",
 			"block_list_fetch_state"
@@ -59,8 +60,9 @@ function backgroundInit() {
 			// Default redactiing to true if not set.
 			var newRedactingVanilla = (data.redacting_vanilla != null ? data.redacting_vanilla : true);
 			var newRedactingTweetdeck = (data.redacting_tweetdeck != null ? data.redacting_tweetdeck : true);
+			var newObservingYouBlock = (data.observing_you_block != null ? data.observing_you_block : true);
+			var newHookingMenus = (data.hooking_menus != null ? data.hooking_menus : true);
 			var newRedactionStyle = (["blank", "faded"].indexOf(data.redaction_style) != -1 ? data.redaction_style : "blank" );
-			var newHookingMenus = (data.hooking_menus != null ? data.hooking_menus : false);
 
 			if (data.block_list) {
 				newBlockList = data.block_list;
@@ -82,8 +84,9 @@ function backgroundInit() {
 
 			setRedactingVanilla(newRedactingVanilla, false);
 			setRedactingTweetdeck(newRedactingTweetdeck, false);
-			setRedactionStyle(newRedactionStyle, false);
+			setObservingYouBlock(newObservingYouBlock, false);
 			setHookingMenus(newHookingMenus, false);
+			setRedactionStyle(newRedactionStyle, false);
 			setBlockListFetchInterval(newFetchInterval, false);
 			setBlockList(newBlockList, newBlockListStamp, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
@@ -132,9 +135,23 @@ function backgroundInit() {
  *   Displays this extension's clickable icon, in the address bar.
  *   This must only be sent after: document.visibilityState == "visible".
  *
- * test_evilness:
- *   param {string[]} message.userIds - A list of users to check against the block_list.
- *   returns {Object.<string, Boolean>} - A dict of key:value pairs. True if on the list.
+ * test_users_evilness:
+ *   Tests users against the block list, reporting results in a set_users_evilness message.
+ *   param {string[]} userIds
+ *
+ * set_users_evilness:
+ *   Adds/removes users in the block list.
+ *   param {Object.<string, Boolean>} value - A dict of userId:evilness pairs.
+ *
+ * request_block:
+ *   Sends a block request to Twitter and, if successful, modifies the local block list.
+ *   param {string} userId
+ *   param {string} [screenName]
+ *
+ * request_unblock:
+ *   Sends an unblock request to Twitter and, if successful, modifies the local block list.
+ *   param {string} userId
+ *   param {string} [screenName]
  *
  * set_redaction_style:
  *   Sets which stylesheet to use for redacted elements.
@@ -219,17 +236,34 @@ chrome.runtime.onConnect.addListener(function(port) {
 				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
+				port.postMessage({"type":"set_observing_you_block", "value":backgroundState["observing_you_block"]});
 				port.postMessage({"type":"set_hooking_menus", "value":backgroundState["hooking_menus"]});
 			}
-			else if (message.type == "test_evilness") {
-				//RNE.logging.debug("Testing evilness: "+ message.userIds.join());
-				results = {};
+			else if (message.type == "test_users_evilness") {
+				//RNE.logging.debug("Testing users evilness: "+ message.userIds.join());
+				evilnessResults = {};
 				for (var i=0; i < message.userIds.length; i++) {
 					var userId = message.userIds[i];
 
-					results[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
+					evilnessResults[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
 				}
-				port.postMessage({"type":"evilness_result", "value":results});
+				port.postMessage({"type":"set_users_evilness", "value":evilnessResults});
+			}
+			else if (message.type == "set_users_evilness") {
+				var addIds = [];
+				var remIds = [];
+				for (var key in message.value) {
+					if (!message.value.hasOwnProperty(key)) continue;
+
+					var userId = key;
+					var evilness = message.value[key];
+					if (evilness) {
+						addIds.push(userId);
+					} else {
+						remIds.push(userId);
+					}
+				}
+				modifyBlockList(addIds, remIds);
 			}
 			else if (message.type == "request_block") {
 				requestBlock(message.user_id, message.screen_name);
@@ -242,12 +276,23 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 				port.postMessage({"type":"set_redacting_vanilla", "value":backgroundState["redacting_vanilla"]});
 				port.postMessage({"type":"set_redacting_tweetdeck", "value":backgroundState["redacting_tweetdeck"]});
-				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
+				port.postMessage({"type":"set_observing_you_block", "value":backgroundState["observing_you_block"]});
 				port.postMessage({"type":"set_hooking_menus", "value":backgroundState["hooking_menus"]});
+				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
 				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
 				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
+			}
+			else if (message.type == "set_observing_you_block") {
+				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+
+				setObservingYouBlock(Boolean(message.value), true);
+			}
+			else if (message.type == "set_hooking_menus") {
+				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+
+				setHookingMenus(Boolean(message.value), true);
 			}
 			else if (message.type == "set_redaction_style") {
 				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
@@ -255,11 +300,6 @@ chrome.runtime.onConnect.addListener(function(port) {
 				if (message.value != backgroundState["redaction_style"]) {
 					setRedactionStyle(message.value, true);
 				}
-			}
-			else if (message.type == "set_hooking_menus") {
-				RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
-
-				setHookingMenus(Boolean(message.value), true);
 			}
 			else if (message.type == "verify_twitter_credentials") {
 				verifyCredentials(function(reply, err) {
@@ -274,7 +314,6 @@ chrome.runtime.onConnect.addListener(function(port) {
 					}
 					port.postMessage({"type":"set_status_text", "value":status});
 				});
-				return true;
 			}
 			else if (message.type == "request_twitter_pin") {
 				requestPIN();
@@ -596,7 +635,7 @@ function requestBlock(userId, screenName) {
 				announceStatus(successMsg, "notice", false);
 				broadcastMessage("content", {"type":"toast", "style":"success", "text":successMsg});
 
-				addBlockedUserId(userId);
+				modifyBlockList([userId], null);
 			}
 		}
 	);
@@ -625,7 +664,7 @@ function requestUnblock(userId, screenName) {
 				announceStatus(successMsg, "notice", false);
 				broadcastMessage("content", {"type":"toast", "style":"success", "text":successMsg});
 
-				removeBlockedUserId(userId);
+				modifyBlockList(null, [userId]);
 			}
 		}
 	);
@@ -925,6 +964,22 @@ function setRedactionStyle(value, store) {
 }
 
 /**
+ * Toggles you-block observation and notifies other scripts.
+ *
+ * @param {Boolean} b - The new you-block observation state.
+ * @param {Boolean} store - True to set localstorage, false otherwise.
+ */
+function setObservingYouBlock(b, store) {
+	backgroundState["observing_you_block"] = Boolean(b);
+
+	broadcastMessage("all", {"type":"set_observing_you_block", "value":backgroundState["observing_you_block"]});
+
+	if (store) {
+		setStorage({"observing_you_block":backgroundState["observing_you_block"]});
+	}
+}
+
+/**
  * Toggles menu hooking and notifies other scripts.
  *
  * @param {Boolean} b - The new hooking menus state.
@@ -1019,39 +1074,48 @@ function fetchDummyBlockList() {
 }
 
 /**
- * Adds a userId to the block list, notifies other scripts, and stores the list.
+ * Adds/removes users in the block list, notifies other scripts, and stores the list.
+ *
+ * @param {string[]} addIds - A list of userIds to add.
+ * @param {string[]} remIds - A list of userIds to remove.
  */
-function addBlockedUserId(userId) {
-	if (!userId || backgroundState["block_list"].indexOf(userId) != -1) return;
-
-	backgroundState["block_list"].push(userId);
+function modifyBlockList(addIds, remIds) {
+	if (!addIds && !remIds) return;
 
 	var evilnessResults = {};
-	evilnessResults[userId] = true;  // Just added, definitely evil.
+	var modified = false;
 
-	broadcastMessage("content", {"type":"evilness_result", "value":evilnessResults});
+	if (addIds) {
+		for (var i=0; i < addIds.length; i++) {
+			var userId = addIds[i];
 
-	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
-	setStorage({"block_list":backgroundState["block_list"]});
-}
+			if (!userId || backgroundState["block_list"].indexOf(userId) != -1) continue;
 
-/**
- * Removes a userId from the block list, notifies other scripts, and stores the list.
- */
-function removeBlockedUserId(userId) {
-	if (!userId) return;
-	var index = backgroundState["block_list"].indexOf(userId);
-	if (index == -1) return;
+			backgroundState["block_list"].push(userId);
+			evilnessResults[userId] = true;   // Just added, definitely evil.
+			modified = true;
+		}
+	}
+	if (remIds) {
+		for (var i=0; i < remIds.length; i++) {
+			var userId = remIds[i];
 
-	backgroundState["block_list"].splice(index, 1);
+			if (!userId) continue;
+			var index = backgroundState["block_list"].indexOf(userId);
+			if (index == -1) continue;
 
-	var evilnessResults = {};
-	evilnessResults[userId] = false;  // Just removed, definitely not evil.
+			backgroundState["block_list"].splice(index, 1);
+			evilnessResults[userId] = false;  // Just removed, definitely not evil.
+			modified = true;
+		}
+	}
 
-	broadcastMessage("content", {"type":"evilness_result", "value":evilnessResults});
+	if (modified) {
+		broadcastMessage("content", {"type":"set_users_evilness", "value":evilnessResults});
 
-	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
-	setStorage({"block_list":backgroundState["block_list"]});
+		broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+		setStorage({"block_list":backgroundState["block_list"]});
+	}
 }
 
 
@@ -1066,6 +1130,7 @@ backgroundState["redact_all"] = false;
 backgroundState["redacting_vanilla"] = false;
 backgroundState["redacting_tweetdeck"] = false;
 backgroundState["redaction_style"] = "blank";
+backgroundState["observing_you_block"] = false;
 backgroundState["hooking_menus"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
 backgroundState["block_list_timestamp"] = Date.now();

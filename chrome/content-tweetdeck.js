@@ -799,7 +799,7 @@ function registerItem(node, itemType) {
 	}
 
 	if (newUserIds.length > 0) {
-		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUserIds});
+		backgroundPort.postMessage({"type":"test_users_evilness", "userIds":newUserIds});
 	}
 
 	return itemInfo;
@@ -1113,9 +1113,9 @@ backgroundPort.onMessage.addListener(
 			clearAllItemsRedaction(null);
 
 			var userIds = getRegisteredUsers();
-			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
+			backgroundPort.postMessage({"type":"test_users_evilness","userIds":userIds});
 		}
-		else if (message.type == "evilness_result") {
+		else if (message.type == "set_users_evilness") {
 			//RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 			for (key in message.value) {
 				if (!message.value.hasOwnProperty(key)) continue;
@@ -1169,7 +1169,7 @@ backgroundPort.onMessage.addListener(
 		}
 		else if (message.type == "toast") {
 			if (message.style == "error") {
-				toastr.error(message.text, "", {"timeOut":"6000"});
+				toastr.error(message.text, "", {"timeOut":"10000"});
 			} else if (message.style == "info") {
 				toastr.info(message.text);
 			} else {

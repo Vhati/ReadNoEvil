@@ -98,8 +98,9 @@ var timedFieldsState = {};  // Dict of name:{node, timer_id, last_value, callbac
 var optionsState = {};
 optionsState["redacting_vanilla_box"] = null;
 optionsState["redacting_tweetdeck_box"] = null;
-optionsState["redaction_style_combo"] = null;
+optionsState["observing_you_block_box"] = null;
 optionsState["hooking_menus_box"] = null;
+optionsState["redaction_style_combo"] = null;
 optionsState["request_pin_btn"] = null;
 optionsState["pin_field"] = null;
 optionsState["submit_pin_btn"] = null;
@@ -122,6 +123,14 @@ backgroundPort.onMessage.addListener(
 			var b = Boolean(message.value);
 			optionsState["redacting_tweetdeck_box"].checked = b;
 		}
+		else if (message.type == "set_observing_you_block") {
+			var b = Boolean(message.value);
+			optionsState["observing_you_block_box"].checked = b;
+		}
+		else if (message.type == "set_hooking_menus") {
+			var b = Boolean(message.value);
+			optionsState["hooking_menus_box"].checked = b;
+		}
 		else if (message.type == "set_redaction_style") {
 			var name = message.value;
 			var namedOption = optionsState["redaction_style_combo"].options.namedItem(name);
@@ -130,10 +139,6 @@ backgroundPort.onMessage.addListener(
 			} else {
 				RNE.logging.warning("Options page has no option for redaction style: "+ message.value);
 			}
-		}
-		else if (message.type == "set_hooking_menus") {
-			var b = Boolean(message.value);
-			optionsState["hooking_menus_box"].checked = b;
 		}
 		else if (message.type == "set_block_list_fetch_interval") {
 			setTimedField("fetch_interval_field", message.value);
@@ -170,8 +175,9 @@ backgroundPort.onMessage.addListener(
 document.addEventListener("DOMContentLoaded", function() {
 	optionsState["redacting_vanilla_box"] = document.getElementById("redacting-vanilla-box");
 	optionsState["redacting_tweetdeck_box"] = document.getElementById("redacting-tweetdeck-box");
-	optionsState["redaction_style_combo"] = document.getElementById("redaction-style-combo");
+	optionsState["observing_you_block_box"] = document.getElementById("observing-you-block-box");
 	optionsState["hooking_menus_box"] = document.getElementById("hooking-menus-box");
+	optionsState["redaction_style_combo"] = document.getElementById("redaction-style-combo");
 	optionsState["request_pin_btn"] = document.getElementById("request-pin-btn");
 	optionsState["pin_field"] = document.getElementById("pin-field");
 	optionsState["submit_pin_btn"] = document.getElementById("submit-pin-btn");
@@ -188,12 +194,16 @@ document.addEventListener("DOMContentLoaded", function() {
 		backgroundPort.postMessage({"type":"set_redacting_tweetdeck", "value":Boolean(optionsState["redacting_tweetdeck_box"].checked)});
 	});
 
-	optionsState["redaction_style_combo"].addEventListener("change", function() {
-		backgroundPort.postMessage({"type":"set_redaction_style", "value":optionsState["redaction_style_combo"].value});
+	optionsState["observing_you_block_box"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_observing_you_block", "value":Boolean(optionsState["observing_you_block_box"].checked)});
 	});
 
 	optionsState["hooking_menus_box"].addEventListener("change", function() {
 		backgroundPort.postMessage({"type":"set_hooking_menus", "value":Boolean(optionsState["hooking_menus_box"].checked)});
+	});
+
+	optionsState["redaction_style_combo"].addEventListener("change", function() {
+		backgroundPort.postMessage({"type":"set_redaction_style", "value":optionsState["redaction_style_combo"].value});
 	});
 
 	optionsState["request_pin_btn"].addEventListener("click", function() {

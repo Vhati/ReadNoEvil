@@ -125,6 +125,38 @@ ItemType.PROFILE_CARD = {
 
 
 /**
+ * A MutationObserver callback watching the document for data-you-block attribute changes.
+ */
+function youBlockMutationCallback(mutations) {
+	var seenYouBlocks = null;
+	mutations.forEach(function(mutation) {
+		if (mutation.attributeName != "data-you-block") return;
+		var node = mutation.target;
+
+		var newValue = node.getAttribute(mutation.attributeName);
+		if (newValue === mutation.oldValue) return;  // Fires twice: old != new, then new == new!?
+
+		var youBlock = (newValue === "true" ? true : (newValue === "false" ? false : null));
+		if (youBlock == null) return;
+
+		if (seenYouBlocks == null) seenYouBlocks = {};
+
+		var userId = node.getAttribute("data-user-id") || null;          // This null is bad.
+		if (!userId || seenYouBlocks[userId] === youBlock) return;
+		seenYouBlocks[userId] = youBlock;
+
+		var screenName = node.getAttribute("data-screen-name") || null;  // This null will be tolerated.
+
+		RNE.logging.debug("A you-block flag changed"+ (screenName ? " for @"+ screenName : "") +" (userId: "+ userId +"): "+ youBlock);
+		var evilnessResults = {};
+		evilnessResults[userId] = youBlock;
+		backgroundPort.postMessage({"type":"set_users_evilness", "value":evilnessResults});
+	});
+}
+
+
+
+/**
  * A MutationObserver callback watching ancestors for added/removed streams.
  */
 function upstreamMutationCallback(mutations) {
@@ -318,6 +350,8 @@ function dredgeInterestingItems(node) {
  * Tries to get this script into an inert state, in case of emergency.
  */
 function panic() {
+	contentState["you_block_observer"].disconnect();
+
 	for (var i=0; i < contentState["upstreams"].length; i++) {
 		var upstreamInfo = contentState["upstreams"][i];
 		upstreamInfo.observer.disconnect();
@@ -579,7 +613,7 @@ function registerItem(node, itemType) {
 	}
 
 	if (newUserIds.length > 0) {
-		backgroundPort.postMessage({"type":"test_evilness", "userIds":newUserIds});
+		backgroundPort.postMessage({"type":"test_users_evilness", "userIds":newUserIds});
 	}
 
 	return itemInfo;
@@ -872,6 +906,7 @@ function setStylesheet(cssFile) {
 var contentState = {};
 contentState["redacting"] = false;
 contentState["redact_all"] = false;
+contentState["you_block_observer"] = new MutationObserver(youBlockMutationCallback);
 contentState["nav_observer"] = null;
 contentState["upstreams"] = [];  // List of {node:HTMLElement, type:string, observer:MutationObserver}
 contentState["streams"] = [];    // List of {node:HTMLElement, type:string, observer:MutationObserver}
@@ -892,9 +927,9 @@ backgroundPort.onMessage.addListener(
 			clearAllItemsRedaction(null);
 
 			var userIds = getRegisteredUsers();
-			backgroundPort.postMessage({"type":"test_evilness","userIds":userIds});
+			backgroundPort.postMessage({"type":"test_users_evilness","userIds":userIds});
 		}
-		else if (message.type == "evilness_result") {
+		else if (message.type == "set_users_evilness") {
 			//RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
 			for (key in message.value) {
 				if (!message.value.hasOwnProperty(key)) continue;
@@ -937,9 +972,20 @@ backgroundPort.onMessage.addListener(
 			var cssFile = (cssFiles.hasOwnProperty(name) ? cssFiles[name] : cssFiles["blank"]);
 			setStylesheet(cssFile);
 		}
+		else if (message.type == "set_observing_you_block") {
+			RNE.logging.debug("Message received: "+ message.type +", "+ message.value);
+			var b = Boolean(message.value);
+
+			if (b) {
+				var youBlockCfg = {"childList":false, "attributes":true, "characterData":false, "subtree":true, "attributeFilter":["data-you-block"], "attributeOldValue":true};
+				contentState["you_block_observer"].observe(document.documentElement, youBlockCfg);
+			} else {
+				contentState["you_block_observer"].disconnect();
+			}
+		}
 		else if (message.type == "toast") {
 			if (message.style == "error") {
-				toastr.error(message.text, "", {"timeOut":"6000"});
+				toastr.error(message.text, "", {"timeOut":"10000"});
 			} else if (message.style == "info") {
 				toastr.info(message.text);
 			} else {
