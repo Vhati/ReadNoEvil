@@ -18,7 +18,7 @@ div.rne-vanilla-tweet-redacted  > div.content  > div.stream-item-header > .time 
   background-size: 1em;
 }
 /* Tweet text. */
-div.rne-vanilla-tweet-redacted  > div.content > p.tweet-text {
+div.rne-vanilla-tweet-redacted  > div.content > div.js-tweet-text-container {
   opacity: 0.15;
 }
 /* Tweet image(s)/video. */
