@@ -2,10 +2,6 @@ RNE.logging.setVerbosity(RNE.logging.Level.DEBUG);
 
 
 
-toastr.options.showDuration = "150";
-toastr.options.hideDuration = "300";
-toastr.options.showEasing = "linear";
-toastr.options.hideEasing = "linear";
 toastr.options.positionClass = "toast-bottom-right";
 toastr.options.escapeHtml = true;
 toastr.options.timeOut = "2500";
