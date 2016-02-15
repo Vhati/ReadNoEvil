@@ -357,7 +357,6 @@ function panic() {
 	setRedacting(false);
 	clearAllItemsRedaction(null);
 	unregisterAllStreams();
-	contentState["streams"] = [];
 
 	if (contentState["nav_observer"]) {
 		contentState["nav_observer"].disconnect();
@@ -376,7 +375,6 @@ function initStateVars() {
 	}
 	contentState["upstreams"] = [];
 
-	contentState["streams"] = [];
 	unregisterAllStreams();
 
 	var upstreamTypeObjs = [UpstreamType.TIMELINE, UpstreamType.PERMALINK_OVERLAY];

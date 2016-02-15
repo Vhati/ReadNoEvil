@@ -539,7 +539,6 @@ function panic() {
 	setRedacting(false);
 	clearAllItemsRedaction(null);
 	unregisterAllStreams();
-	contentState["streams"] = [];
 
 	if (contentState["app_observer"]) {
 		contentState["app_observer"].disconnect();
@@ -563,7 +562,6 @@ function initStateVars() {
 	}
 	contentState["upstreams"] = [];
 
-	contentState["streams"] = [];
 	unregisterAllStreams();
 
 	var upstreamTypeObjs = [UpstreamType.APP_COLUMNS, UpstreamType.SEARCH_PREVIEW];
