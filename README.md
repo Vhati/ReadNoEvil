@@ -59,3 +59,10 @@ Debugging
 * Each tab has its own log. While at Tweetdeck or Twitter.com, bring up the developer tools.
 * They communicate with a central hidden background page. Go to chrome://extensions/ and click "background page".
 * The options dialog and address bar icon's popup have hidden pages too. Right-click and "inspect". (They're usually quiet.)
+
+
+Acknowledgments
+---------------
+
+* The logo is "Address book", from the FlatSVG KDE Iconset, by Danny Allen ([source](http://kde-look.org/content/show.php/FlatSVG?content=17158)).
+* Toastr notifications ([source](https://github.com/CodeSeven/toastr)), modified to not require jQuery.
