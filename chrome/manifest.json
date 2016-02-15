@@ -1,6 +1,6 @@
 {
   "name": "ReadNoEvil",
-  "description": "Prune Twitter/Tweetdeck streams to omit users you've blocked.",
+  "description": "Redact Twitter/Tweetdeck streams, so you don't have to read users you've blocked.",
   "version": "0.0.9",
   "homepage_url": "https://github.com/Vhati/ReadNoEvil",
 

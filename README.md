@@ -12,13 +12,17 @@ Users discovered a simple CSS workaround, since tweets are internally flagged as
 * [Link](https://twitter.com/cdaveross/status/687547100947550208): uBlock
 * [Link](https://gist.github.com/CrystalDave/2b11c05c87005cc0f29c): GreaseMonkey/TamperMonkey
 
-However Tweetdeck does *not* have that flag. Third party scripts don't have an easy way to identify and remove unwanted tweets.
+However Tweetdeck does *not* have that flag. Third party scripts don't have an easy way to identify unwanted tweets.
 
 
 About
 -----
 
 This extension fixes Tweetdeck the hard way. It connects to Twitter - acting as an app - to fetch a list of blocked user ids. Whenever you're on Tweetdeck or Twitter.com, this extension will monitor the page, check the list, and redact any tweets that contain a match.
+
+<a href="https://raw.github.com/Vhati/ReadNoEvil/master/images/screenshot01.png"><img src="https://raw.github.com/Vhati/ReadNoEvil/master/images/screenshot01.png" width="145px" height="auto" /></a>
+
+The tweets will still be there: clicking a tweet's date will reveal it. This just makes the text easier to ignore.
 
 
 Setup
