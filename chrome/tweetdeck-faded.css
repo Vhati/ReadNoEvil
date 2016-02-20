@@ -15,7 +15,7 @@ article.rne-tweetdeck-tweet-redacted  > div.item-box div.tweet > header.tweet-he
   content: "";
   width: 1em;
   height: 1em;
-  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background: url(chrome-extension://__MSG_@@extension_id__/images/book_gray_19.png) no-repeat center center;
   background-size: 1em;
 }
 /* Tweet text. */
@@ -44,7 +44,7 @@ article.rne-tweetdeck-account-activity-redacted > div.item-box div.account-summa
   content: "";
   width: 1em;
   height: 1em;
-  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background: url(chrome-extension://__MSG_@@extension_id__/images/book_gray_19.png) no-repeat center center;
   background-size: 1em;
 }
 /* Account activity bio text. */

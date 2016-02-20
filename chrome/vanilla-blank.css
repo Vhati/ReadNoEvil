@@ -15,7 +15,7 @@ div.rne-vanilla-tweet-redacted  > div.content  > div.stream-item-header > .time 
   content: "";
   width: 1em;
   height: 1em;
-  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background: url(chrome-extension://__MSG_@@extension_id__/images/book_gray_19.png) no-repeat center center;
   background-size: 1em;
 }
 /* Tweet text. */
@@ -49,7 +49,7 @@ div.rne-vanilla-profile-card-redacted  > div.ProfileCard-content  span.UserActio
   content: "";
   width: 1em;
   height: 1em;
-  background: url(chrome-extension://__MSG_@@extension_id__/icon19.png) no-repeat center center;
+  background: url(chrome-extension://__MSG_@@extension_id__/images/book_gray_19.png) no-repeat center center;
   background-size: 1em;
 }
 /* Profile card bio text */

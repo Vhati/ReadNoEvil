@@ -64,5 +64,5 @@ Debugging
 Acknowledgments
 ---------------
 
-* The logo is "Address book", from the FlatSVG KDE Iconset, by Danny Allen ([source](http://kde-look.org/content/show.php/FlatSVG?content=17158)).
+* The gray icon is "Address book", from the FlatSVG KDE Iconset, by Danny Allen ([source](http://kde-look.org/content/show.php/FlatSVG?content=17158)).
 * Toastr notifications ([source](https://github.com/CodeSeven/toastr)), modified to not require jQuery.
