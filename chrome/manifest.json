@@ -16,13 +16,13 @@
     {
       "matches": ["https://tweetdeck.twitter.com/*"],
       "css": ["toastr.css"],
-      "js": ["toastr.js", "rne-logging.js", "content-tweetdeck.js"],
+      "js": ["toastr.js", "rne-logging.js", "rne-registry.js", "content-tweetdeck.js"],
       "run_at": "document_end"
     },
     {
       "matches": ["https://twitter.com/*"],
       "css": ["toastr.css"],
-      "js": ["toastr.js", "rne-logging.js", "content-vanilla.js"],
+      "js": ["toastr.js", "rne-logging.js", "rne-registry.js", "content-vanilla.js"],
       "run_at": "document_end"
     }
   ],
