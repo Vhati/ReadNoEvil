@@ -38,49 +38,108 @@ function openOptionsPage() {
 
 
 function backgroundInit() {
-	chrome.storage.local.get(
-		[
-			"oauth_key", "oauth_secret",
-			"redacting_vanilla", "redacting_tweetdeck",
-			"observing_you_block", "hooking_menus",
-			"redaction_style",
-			"block_list_fetch_interval",
-			"block_list_timestamp", "block_list",
-			"block_list_fetch_state"
-		],
-		function(data) {
-			if (chrome.runtime.lastError) {
-				throw new Error(chrome.runtime.lastError.message);
+	// Find out how old any existing settings in storage are.
+	var getStorageVersionTask = function() {
+		return new Promise(function(resolve, reject) {
+			chrome.storage.local.get(["storage_version"], function(data) {
+				if (chrome.runtime.lastError) {
+					reject(new Error(chrome.runtime.lastError.message));
+				}
+				var storageVersion = (data.storage_version != null ? data.storage_version : 1);
+				resolve(storageVersion);
+			});
+		});
+	};
+
+	// Depending on storageVersion, translate deprecated settings to the current structure.
+	var getStoredSettingsTask = function(storageVersion) {
+		return new Promise(function(resolve, reject) {
+			if (storageVersion <= 1) {     // RNE v0.0.10.
+				chrome.storage.local.get(
+					[
+						"storage_version",
+						"oauth_key", "oauth_secret",
+						"redacting_vanilla", "redacting_tweetdeck",
+						"observing_you_block", "hooking_menus",
+						"redaction_style",
+						"block_list_fetch_interval",
+						"block_list_fetch_state",
+						"block_list", "block_list_timestamp"
+					],
+					function(data) {
+						if (chrome.runtime.lastError) {
+							reject(new Error(chrome.runtime.lastError.message));
+						}
+						data.storage_version = storageVersion;
+
+						var newBlockList = {"userIds":[], "timestamp":Date.now()};
+
+						if (data.block_list != null) {
+							newBlockList.userIds = data.block_list;
+
+							if (data.block_list_timestamp != null) {
+								newBlockList.timestamp = data.block_list_timestamp;
+							}
+						}
+						delete data.block_list;            // {string[]} - Stringified userId numbers.
+						delete data.block_list_timestamp;  // {string} - Unix time of fetch.
+						data.block_list = newBlockList;
+
+						if (data.oauth_key != null && data.oauth_secret != null) {
+							data.oauth_tokens = {"key":data.oauth_key, "secret":data.oauth_secret};
+						} else {
+							data.oauth_tokens = null;
+						}
+						delete data.oauth_key;     // {string}
+						delete data.oauth_secret;  // {string}
+
+						resolve(data);
+					}
+				);
+			} else {
+				chrome.storage.local.get(
+					[
+						"storage_version",
+						"oauth_tokens",
+						"redacting_vanilla", "redacting_tweetdeck",
+						"observing_you_block", "hooking_menus",
+						"redaction_style",
+						"block_list_fetch_interval",
+						"block_list_fetch_state",
+						"block_list"
+					],
+					function(data) {
+						if (chrome.runtime.lastError) {
+							reject(new Error(chrome.runtime.lastError.message));
+						}
+						data.storage_version = storageVersion;
+						resolve(data);
+					}
+				);
 			}
+		});
+	};
 
+	// Apply stored settings to backgroundState.
+	var applyStoredSettingsTask = function(data) {
+		return new Promise(function(resolve, reject) {
+			var newBlockList = {"userIds":[], "timestamp":Date.now()};
 			var newFetchInterval = 0;
-			var newBlockList;
-			var newBlockListStamp;
+			var newOauthTokens = null;
 
-			// Default redactiing to true if not set.
 			var newRedactingVanilla = (data.redacting_vanilla != null ? data.redacting_vanilla : true);
 			var newRedactingTweetdeck = (data.redacting_tweetdeck != null ? data.redacting_tweetdeck : true);
 			var newObservingYouBlock = (data.observing_you_block != null ? data.observing_you_block : true);
 			var newHookingMenus = (data.hooking_menus != null ? data.hooking_menus : true);
 			var newRedactionStyle = (["blank", "faded"].indexOf(data.redaction_style) != -1 ? data.redaction_style : "blank" );
 
-			if (data.block_list) {
-				newBlockList = data.block_list;
-
-				if (data.block_list_timestamp) {
-					newBlockListStamp = data.block_list_timestamp;
-				} else {
-					newBlockListStamp = Date.now();
-				}
-			}
-			else {
-				newBlockList = [];
-				newBlockListStamp = Date.now();
-			}
+			if (data.block_list != null) newBlockList = data.block_list;
 
 			if (data.block_list_fetch_interval != null) {
 				newFetchInterval = data.block_list_fetch_interval;
 			}
+
+			if (data.oauth_tokens != null) newOauthTokens = data.oauth_tokens;
 
 			setRedactingVanilla(newRedactingVanilla, false);
 			setRedactingTweetdeck(newRedactingTweetdeck, false);
@@ -88,19 +147,81 @@ function backgroundInit() {
 			setHookingMenus(newHookingMenus, false);
 			setRedactionStyle(newRedactionStyle, false);
 			setBlockListFetchInterval(newFetchInterval, false);
-			setBlockList(newBlockList, newBlockListStamp, false);
+			setBlockList(newBlockList, false);
 			backgroundState["block_list_fetch_state"] = data.block_list_fetch_state;
 
-			if (data.oauth_key && data.oauth_secret) {
+			if (newOauthTokens != null) {
 				RNE.logging.info("Using cached Twitter credentials");
-				codebird.setToken(data.oauth_key, data.oauth_secret);
+				codebird.setToken(newOauthTokens.key, newOauthTokens.secret);
 				setTwitterAuthorized(true);
-			}
-			else {
+			} else {
 				RNE.logging.info("No cached Twitter credentials to use");
 			}
 
-			// Print any pending alarms. Then set up alarm handlers.
+			resolve(data);
+		});
+	};
+
+	// Re-save everything if storageVersion is outdated.
+	var modernizeStorageTask = function(data) {
+		return new Promise(function(resolve, reject) {
+			if (data.storage_version !== backgroundState["storage_version"]) {
+				RNE.logging.info("Clearing storage and re-saving all settings");
+
+				chrome.storage.local.clear(function() {
+					if (chrome.runtime.lastError) {
+						RNE.logging.warning(chrome.runtime.lastError.message);
+					}
+					chrome.storage.local.set(
+						{
+							"storage_version":backgroundState["storage_version"],
+							"oauth_tokens":data.oauth_tokens,
+							"redacting_vanilla":backgroundState["redacting_vanilla"],
+							"redacting_tweetdeck":backgroundState["redacting_tweetdeck"],
+							"observing_you_block":backgroundState["observing_you_block"],
+							"hooking_menus":backgroundState["hooking_menus"],
+							"redaction_style":backgroundState["redaction_style"],
+							"block_list_fetch_interval":backgroundState["block_list_fetch_interval"],
+							"block_list_fetch_state":backgroundState["block_list_fetch_state"],
+							"block_list":backgroundState["block_list"]
+						},
+						function() {
+							if (chrome.runtime.lastError) {
+								RNE.logging.warning(chrome.runtime.lastError.message);
+							}
+							resolve();
+						}
+					);
+				});
+			}
+			else {
+				resolve();
+			}
+		});
+	};
+
+	// Clear alarms not worth remembering.
+	var clearCruftAlarmsTask = function() {
+		return new Promise(function(resolve, reject) {
+			var alarmIds = [Alarm.REFETCH_CHECK];
+
+			var clearAlarm = function(alarmId) {
+				chrome.alarms.clear(alarmId, function(wasCleared) {
+					if (alarmIds.length > 0) {
+						clearAlarm(alarmIds.splice(0, 1)[0]);
+					}
+					else {
+						resolve();
+					}
+				});
+			};
+			clearAlarm(alarmIds.splice(0, 1)[0]);
+		});
+	};
+
+	// Print any pending alarms. Then set up alarm handlers.
+	var printAlarmsTask = function() {
+		return new Promise(function(resolve, reject) {
 			chrome.alarms.getAll(function(alarms) {
 				if (alarms.length > 0) {
 					RNE.logging.debug("Pending alarms...");
@@ -109,11 +230,38 @@ function backgroundInit() {
 						RNE.logging.debug("  "+ a.name +" ("+ new Date(a.scheduledTime).toLocaleTimeString() +")");
 					}
 				}
-
-				alarmsInit();
+				resolve();
 			});
-		}
-	);
+		});
+	};
+
+	var alarmsInitTask = function() {
+		return new Promise(function(resolve, reject) {
+			alarmsInit();
+			resolve();
+		});
+	};
+
+	Promise.resolve()
+		.then(getStorageVersionTask)
+		.then(getStoredSettingsTask)
+		.then(applyStoredSettingsTask)
+		.then(modernizeStorageTask)
+		.then(clearCruftAlarmsTask)
+		.then(printAlarmsTask)
+		.then(alarmsInitTask)
+		.catch(function(err) {
+			RNE.logging.error(err);
+		});
+
+	// To debug promises...
+	//   Bring up the background page.
+	//   Click the "Sources" tab.
+	//   Enable "Async" and "Pause on exceptions".
+	//   Optionally enable "Pause on Caught Exceptions".
+	//   Reload the extension.
+	//
+	//   Note: Disable them afterward. These options are shared across all windows.
 }
 
 
@@ -245,7 +393,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				for (var i=0; i < message.userIds.length; i++) {
 					var userId = message.userIds[i];
 
-					evilnessResults[userId] = (backgroundState["block_list"].indexOf(userId) != -1);
+					evilnessResults[userId] = (backgroundState["block_list"].userIds.indexOf(userId) != -1);
 				}
 				port.postMessage({"type":"set_users_evilness", "value":evilnessResults});
 			}
@@ -281,7 +429,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 				port.postMessage({"type":"set_redaction_style", "value":backgroundState["redaction_style"]});
 				port.postMessage({"type":"set_block_list_fetch_interval", "value":backgroundState["block_list_fetch_interval"]});
 				port.postMessage({"type":"set_twitter_ready", "value":twitterState["authorized"]});
-				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+				port.postMessage({"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].userIds.length});
 				port.postMessage({"type":"set_status_text", "value":getLastAnnouncedStatus()});
 			}
 			else if (message.type == "set_observing_you_block") {
@@ -501,8 +649,8 @@ function getLastAnnouncedStatus() {
  * @returns {string}
  */
 function getBlockListDescription() {
-	var count = backgroundState["block_list"].length;
-	var stamp = backgroundState["block_list_timestamp"];
+	var count = backgroundState["block_list"].userIds.length;
+	var stamp = backgroundState["block_list"].timestamp;
 	var dateStr = (stamp ? new Date(stamp).toLocaleString() : "");
 
 	var s = count +" users";
@@ -589,7 +737,7 @@ function submitPIN(pin) {
 				setTwitterAuthorized(true);
 
 				chrome.storage.local.set(
-					{"oauth_key":reply.oauth_token, "oauth_secret":reply.oauth_token_secret},
+					{"oauth_tokens":{"key":reply.oauth_token, "secret":reply.oauth_token_secret}},
 					function() {
 						if (chrome.runtime.lastError) {
 							RNE.logging.warning(chrome.runtime.lastError.message);
@@ -846,7 +994,7 @@ function fetchBlockListBackend(fetchState) {
 				RNE.logging.info("Block list fetch completed");
 				announceStatus("Block list fetch completed.", "notice", true);
 
-				setBlockList(fetchState["new_list"], Date.now(), true);
+				setBlockList({"userIds":fetchState["new_list"], "timestamp":Date.now()}, true);
 
 				if (backgroundState["block_list_fetch_state"] == fetchState) {
 					backgroundState["block_list_fetch_state"] = null;
@@ -897,7 +1045,7 @@ function fetchBlockListIfExpired() {
 	if (backgroundState["block_list_fetch_state"] != null) return;
 
 	var nowStamp = Date.now();
-	var listStamp = backgroundState["block_list_timestamp"];
+	var listStamp = backgroundState["block_list"].timestamp;
 	var fetchInterval = backgroundState["block_list_fetch_interval"];
 	var daysOld = (nowStamp - listStamp) / 1000 / 60 / 60 / 24;
 
@@ -1035,22 +1183,21 @@ function setTwitterAuthorized(b) {
 /**
  * Replaces the current block list and notifies other scripts.
  *
- * @param {string[]} new_list - The new list of stringified userIds.
- * @param {Number} timestamp - The unix time the list was fetched, or null for now.
+ * The list's userIds are stringified numbers.
+ * The list's timestamp is the unix time when it was fetched (or Date.now()).
+ *
+ * @param {Object} new_list - {userIds:string[], timestamp:string}
  * @param {Boolean} store - True to set localstorage, false otherwise.
  */
-function setBlockList(new_list, timestamp, store) {
-	if (!timestamp) timestamp = Date.now();
-
-	backgroundState["block_list_timestamp"] = timestamp;
-	backgroundState["block_list"] = new_list;
+function setBlockList(newBlockList, store) {
+	backgroundState["block_list"] = newBlockList;
 
 	broadcastMessage("content", {"type":"reset_evilness"});
-	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+	broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].userIds.length});
 
 	if (store) {
 		chrome.storage.local.set(
-			{"block_list_timestamp":backgroundState["block_list_timestamp"], "block_list":backgroundState["block_list"]},
+			{"block_list":backgroundState["block_list"]},
 			function() {
 				if (chrome.runtime.lastError) {
 					RNE.logging.warning(chrome.runtime.lastError.message);
@@ -1070,11 +1217,13 @@ function setBlockList(new_list, timestamp, store) {
 
 function fetchDummyBlockList() {
 	RNE.logging.info("Fetching dummy block list");
-	setBlockList(["0987654321","12345678"], null);
+	setBlockList({"userIds":["0987654321","12345678"], "timestamp":Date.now()}, false);
 }
 
 /**
  * Adds/removes users in the block list, notifies other scripts, and stores the list.
+ *
+ * The timestamp will be affected.
  *
  * @param {string[]} addIds - A list of userIds to add.
  * @param {string[]} remIds - A list of userIds to remove.
@@ -1089,9 +1238,9 @@ function modifyBlockList(addIds, remIds) {
 		for (var i=0; i < addIds.length; i++) {
 			var userId = addIds[i];
 
-			if (!userId || backgroundState["block_list"].indexOf(userId) != -1) continue;
+			if (!userId || backgroundState["block_list"].userIds.indexOf(userId) != -1) continue;
 
-			backgroundState["block_list"].push(userId);
+			backgroundState["block_list"].userIds.push(userId);
 			evilnessResults[userId] = true;   // Just added, definitely evil.
 			modified = true;
 		}
@@ -1101,10 +1250,10 @@ function modifyBlockList(addIds, remIds) {
 			var userId = remIds[i];
 
 			if (!userId) continue;
-			var index = backgroundState["block_list"].indexOf(userId);
+			var index = backgroundState["block_list"].userIds.indexOf(userId);
 			if (index == -1) continue;
 
-			backgroundState["block_list"].splice(index, 1);
+			backgroundState["block_list"].userIds.splice(index, 1);
 			evilnessResults[userId] = false;  // Just removed, definitely not evil.
 			modified = true;
 		}
@@ -1113,7 +1262,7 @@ function modifyBlockList(addIds, remIds) {
 	if (modified) {
 		broadcastMessage("content", {"type":"set_users_evilness", "value":evilnessResults});
 
-		broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].length});
+		broadcastMessage("options", {"type":"set_block_list_description", "value":getBlockListDescription(), "count":backgroundState["block_list"].userIds.length});
 		setStorage({"block_list":backgroundState["block_list"]});
 	}
 }
@@ -1126,6 +1275,7 @@ var consumerSecret = "Zkmlr1W3F4SQUMjcHNsuhL03FzSC9lhe9ZNJGMRYUpsnL4A14v";
 codebird.setConsumerKey(consumerKey, consumerSecret);
 
 var backgroundState = {};
+backgroundState["storage_version"] = 2;
 backgroundState["redact_all"] = false;
 backgroundState["redacting_vanilla"] = false;
 backgroundState["redacting_tweetdeck"] = false;
@@ -1133,9 +1283,8 @@ backgroundState["redaction_style"] = "blank";
 backgroundState["observing_you_block"] = false;
 backgroundState["hooking_menus"] = false;
 backgroundState["block_list_fetch_interval"] = 0;
-backgroundState["block_list_timestamp"] = Date.now();
-backgroundState["block_list"] = [];
 backgroundState["block_list_fetch_state"] = null;
+backgroundState["block_list"] = {"userIds":[], "timestamp":Date.now()};
 backgroundState["last_status"] = null;  // {text, severity, when}
 backgroundState["ports"] = {"all":[], "content":[], "popup":[], "options":[], "unknown":[]};
 
