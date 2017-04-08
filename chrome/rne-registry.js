@@ -159,7 +159,7 @@ RNE.registry = RNE.registry || (function() {
 							var itemInfo = registerItem(dredgedItem.node, dredgedItem.type);
 
 							// Redact if a user is already known to be evil (or redact_all).
-							if (itemInfo != null && (contentState["redact_all"] || isItemTainted(itemInfo))) {
+							if (itemInfo != null && (state["redact_all"] || isItemTainted(itemInfo))) {
 								setItemRedacted(itemInfo, true);
 							}
 						}
