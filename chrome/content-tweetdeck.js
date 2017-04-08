@@ -58,7 +58,7 @@ ItemType.TWEET = {
 	dredgeSelector: "article.stream-item",
 
 	_getEllipsisLink: function(node) {
-		return node.querySelector(":scope > div.item-box div.tweet > div.tweet-body > footer.tweet-footer a.tweet-action[rel='actionsMenu'][data-user-id]");
+		return node.querySelector(":scope > div.item-box div.tweet > footer.tweet-footer a.tweet-action[rel='actionsMenu'][data-user-id]");
 	},
 
 	_getPrimaryUserId: function(node) {
