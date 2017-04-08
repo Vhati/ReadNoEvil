@@ -22,7 +22,7 @@ div.rne-vanilla-tweet-redacted  > div.content > div.js-tweet-text-container {
   opacity: 0.15;
 }
 /* Tweet image(s)/video. */
-div.rne-vanilla-tweet-redacted  > div.content > div.AdaptiveMedia {
+div.rne-vanilla-tweet-redacted  > div.content > div.AdaptiveMediaOuterContainer {
   display: none;
 }
 /* External link previews. */
