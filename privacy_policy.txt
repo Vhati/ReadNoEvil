@@ -1,0 +1,13 @@
+Privacy Policy
+
+> What information do you collect?
+> How do you use the information?
+
+OAuth tokens will be cached locally. When you sign in and tell Twitter to grant permissions to this extension, these tokens are how the extension identifies itself to make requests. These permissions can be revoked from Twitter's app settings.
+
+Your Twitter block list will be cached locally, and re-requested regularly (optional). For efficiency, whenever you block/unblock someone, the cache will add/remove that single name, instead of fetching the whole list again. As you scroll through twitter, names on tweets are compared against the cached list to decide who needs redaction.
+
+
+> What information do you share?
+
+No information will be shared.
